@@ -14,6 +14,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "data");
 const studentsFile = path.join(dataDir, "students.json");
+const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -48,6 +51,11 @@ async function ensureStudentStore() {
 }
 
 async function readStudents() {
+  if (useSupabase) {
+    const data = await supabaseRequest("/students?select=name&order=name.asc");
+    return data.map((student) => student.name).filter(Boolean);
+  }
+
   await ensureStudentStore();
   const text = await fs.readFile(studentsFile, "utf8");
   const parsed = JSON.parse(text || "[]");
@@ -62,10 +70,72 @@ async function writeStudents(students) {
   return unique;
 }
 
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${supabaseUrl}/rest/v1${pathname}`, {
+    ...options,
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || "Supabase 请求失败。");
+  }
+
+  return data;
+}
+
+async function addStudentName(name) {
+  if (!useSupabase) {
+    const students = await readStudents();
+    return writeStudents([...students, name]);
+  }
+
+  await supabaseRequest("/students", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=ignore-duplicates",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  return readStudents();
+}
+
+async function deleteStudentName(name) {
+  if (!useSupabase) {
+    const students = await readStudents();
+    return writeStudents(students.filter((student) => student !== name));
+  }
+
+  await supabaseRequest(`/students?name=eq.${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+
+  return readStudents();
+}
+
 function extractJson(text) {
   const trimmed = text.trim();
   const match = trimmed.match(/\{[\s\S]*\}/);
   return JSON.parse(match ? match[0] : trimmed);
+}
+
+function cleanLeadingPunctuation(value) {
+  if (typeof value !== "string") return value;
+  return value.trim().replace(/^[，。；;、：:\s]+/, "");
+}
+
+function cleanFeedbackData(data) {
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, cleanLeadingPunctuation(value)]),
+  );
 }
 
 app.get("/api/students", async (req, res) => {
@@ -89,9 +159,7 @@ app.post("/api/students", async (req, res) => {
       return res.status(400).json({ error: "学生姓名不能超过 20 个字符。" });
     }
 
-    const students = await readStudents();
-    const nextStudents = await writeStudents([...students, name]);
-    res.json({ students: nextStudents });
+    res.json({ students: await addStudentName(name) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "保存学生姓名失败。" });
@@ -101,9 +169,7 @@ app.post("/api/students", async (req, res) => {
 app.delete("/api/students/:name", async (req, res) => {
   try {
     const name = String(req.params.name || "").trim();
-    const students = await readStudents();
-    const nextStudents = await writeStudents(students.filter((student) => student !== name));
-    res.json({ students: nextStudents });
+    res.json({ students: await deleteStudentName(name) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "删除学生姓名失败。" });
@@ -131,7 +197,7 @@ app.post("/api/generate-feedback", async (req, res) => {
 - studentName：学生姓名。原文没有明确姓名时写“同学”。
 - courseName：课程名称。原文没有明确课程时，根据内容合理推测。
 - todayContent：今日教学内容。写成一段完整内容，80-160 字，要包含本节课讲了什么、练了什么、围绕哪些知识点展开。
-- keyPoints：本节课重点。分条或分号组织，120-220 字，要具体到知识点、方法、题型或解题步骤。
+- keyPoints：本节课重点。用“1. ...；2. ...；3. ...”这样的编号格式组织，开头不要加分号或其他标点，120-220 字，要具体到知识点、方法、题型或解题步骤。
 - difficultPoints：本节课难点。120-220 字，要说明学生容易卡在哪里，不能只写“综合运用较难”。
 - absorption：学生吸收情况。180-300 字，必须结合 todayContent/keyPoints/difficultPoints 来写：哪些内容吸收较好，哪些内容还需要练习，原因是什么，后续如何巩固。不要写空泛评价。
 - classroomPerformance：课堂表现。80-160 字，结合课堂专注度、互动、答题、思路跟进情况来写；如果原文没有提到，要基于课堂记录谨慎推断。
@@ -157,7 +223,7 @@ ${rawText}
       input: prompt,
     });
 
-    const data = extractJson(response.output_text || "");
+    const data = cleanFeedbackData(extractJson(response.output_text || ""));
     res.json({ ...fallbackResult, ...data });
   } catch (error) {
     console.error(error);
