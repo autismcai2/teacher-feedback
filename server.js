@@ -40,6 +40,29 @@ const fallbackResult = {
   parentFeedback: "",
 };
 
+function publicStorageError(action, error) {
+  const message = error?.message || "未知错误";
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes("could not find the table") ||
+    lower.includes("relation") ||
+    lower.includes("schema cache")
+  ) {
+    return `${action}失败：Supabase 里可能还没有创建 public.students 表。请先运行建表 SQL。`;
+  }
+
+  if (lower.includes("jwt") || lower.includes("permission") || lower.includes("unauthorized")) {
+    return `${action}失败：Supabase key 可能填错了。请使用 service_role key 或 secret key，不要使用 anon key。`;
+  }
+
+  if (lower.includes("fetch failed") || lower.includes("invalid url") || lower.includes("enotfound")) {
+    return `${action}失败：SUPABASE_URL 可能填错了，请确认格式类似 https://xxxx.supabase.co。`;
+  }
+
+  return `${action}失败：${message}`;
+}
+
 async function ensureStudentStore() {
   await fs.mkdir(dataDir, { recursive: true });
 
@@ -48,6 +71,27 @@ async function ensureStudentStore() {
   } catch {
     await fs.writeFile(studentsFile, "[]\n", "utf8");
   }
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${supabaseUrl}/rest/v1${pathname}`, {
+    ...options,
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Supabase 请求失败：${response.status}`);
+  }
+
+  return data;
 }
 
 async function readStudents() {
@@ -70,27 +114,6 @@ async function writeStudents(students) {
   return unique;
 }
 
-async function supabaseRequest(pathname, options = {}) {
-  const response = await fetch(`${supabaseUrl}/rest/v1${pathname}`, {
-    ...options,
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || "Supabase 请求失败。");
-  }
-
-  return data;
-}
-
 async function addStudentName(name) {
   if (!useSupabase) {
     const students = await readStudents();
@@ -99,9 +122,7 @@ async function addStudentName(name) {
 
   await supabaseRequest("/students", {
     method: "POST",
-    headers: {
-      Prefer: "resolution=ignore-duplicates",
-    },
+    headers: { Prefer: "resolution=ignore-duplicates" },
     body: JSON.stringify({ name }),
   });
 
@@ -140,10 +161,10 @@ function cleanFeedbackData(data) {
 
 app.get("/api/students", async (req, res) => {
   try {
-    res.json({ students: await readStudents() });
+    res.json({ students: await readStudents(), storage: useSupabase ? "supabase" : "local" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "读取学生名单失败。" });
+    res.status(500).json({ error: publicStorageError("读取学生名单", error) });
   }
 });
 
@@ -159,20 +180,20 @@ app.post("/api/students", async (req, res) => {
       return res.status(400).json({ error: "学生姓名不能超过 20 个字符。" });
     }
 
-    res.json({ students: await addStudentName(name) });
+    res.json({ students: await addStudentName(name), storage: useSupabase ? "supabase" : "local" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "保存学生姓名失败。" });
+    res.status(500).json({ error: publicStorageError("保存学生姓名", error) });
   }
 });
 
 app.delete("/api/students/:name", async (req, res) => {
   try {
     const name = String(req.params.name || "").trim();
-    res.json({ students: await deleteStudentName(name) });
+    res.json({ students: await deleteStudentName(name), storage: useSupabase ? "supabase" : "local" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "删除学生姓名失败。" });
+    res.status(500).json({ error: publicStorageError("删除学生姓名", error) });
   }
 });
 
