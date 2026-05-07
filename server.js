@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import fs from "node:fs/promises";
 import OpenAI from "openai";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const dataDir = path.join(__dirname, "data");
+const studentsFile = path.join(dataDir, "students.json");
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -34,11 +37,78 @@ const fallbackResult = {
   parentFeedback: "",
 };
 
+async function ensureStudentStore() {
+  await fs.mkdir(dataDir, { recursive: true });
+
+  try {
+    await fs.access(studentsFile);
+  } catch {
+    await fs.writeFile(studentsFile, "[]\n", "utf8");
+  }
+}
+
+async function readStudents() {
+  await ensureStudentStore();
+  const text = await fs.readFile(studentsFile, "utf8");
+  const parsed = JSON.parse(text || "[]");
+  return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+}
+
+async function writeStudents(students) {
+  await ensureStudentStore();
+  const unique = [...new Set(students.map((name) => String(name).trim()).filter(Boolean))];
+  unique.sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+  await fs.writeFile(studentsFile, `${JSON.stringify(unique, null, 2)}\n`, "utf8");
+  return unique;
+}
+
 function extractJson(text) {
   const trimmed = text.trim();
   const match = trimmed.match(/\{[\s\S]*\}/);
   return JSON.parse(match ? match[0] : trimmed);
 }
+
+app.get("/api/students", async (req, res) => {
+  try {
+    res.json({ students: await readStudents() });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "读取学生名单失败。" });
+  }
+});
+
+app.post("/api/students", async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ error: "请输入学生姓名。" });
+    }
+
+    if (name.length > 20) {
+      return res.status(400).json({ error: "学生姓名不能超过 20 个字符。" });
+    }
+
+    const students = await readStudents();
+    const nextStudents = await writeStudents([...students, name]);
+    res.json({ students: nextStudents });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "保存学生姓名失败。" });
+  }
+});
+
+app.delete("/api/students/:name", async (req, res) => {
+  try {
+    const name = String(req.params.name || "").trim();
+    const students = await readStudents();
+    const nextStudents = await writeStudents(students.filter((student) => student !== name));
+    res.json({ students: nextStudents });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "删除学生姓名失败。" });
+  }
+});
 
 app.post("/api/generate-feedback", async (req, res) => {
   try {
@@ -49,29 +119,32 @@ app.post("/api/generate-feedback", async (req, res) => {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "缺少 OPENAI_API_KEY，请先在 .env 中配置。" });
+      return res.status(500).json({ error: "缺少 OPENAI_API_KEY，请先配置环境变量。" });
     }
 
     const prompt = `
-你是一名教培机构老师的课后反馈助手。
+你是一名经验丰富的教培机构老师，正在帮任课老师整理一份“课后反馈表”和“发给家长的课堂反馈”。
 
-请根据用户输入的一段课堂记录，提取并生成以下内容：
-- studentName：学生姓名。如果原文没有明确姓名，写“同学”。
-- courseName：课程名称。如果原文没有明确课程，请根据内容合理推测。
-- todayContent：今日教学内容。
-- keyPoints：本节课重点。
-- difficultPoints：本节课难点。
-- absorption：学生吸收情况。
-- classroomPerformance：课堂表现。
-- homework：作业布置。如果原文没有提到，写“暂无明确作业安排”。
-- nextSuggestion：后续学习建议。
-- parentFeedback：一段可以直接发给家长的反馈话术。
+请根据用户输入的课堂记录，生成结构化 JSON。你不能只做简单概括，必须把“学生表现/吸收情况/家长反馈”与“本节课具体学习内容”融合在一起。
+
+输出字段：
+- studentName：学生姓名。原文没有明确姓名时写“同学”。
+- courseName：课程名称。原文没有明确课程时，根据内容合理推测。
+- todayContent：今日教学内容。写成一段完整内容，80-160 字，要包含本节课讲了什么、练了什么、围绕哪些知识点展开。
+- keyPoints：本节课重点。分条或分号组织，120-220 字，要具体到知识点、方法、题型或解题步骤。
+- difficultPoints：本节课难点。120-220 字，要说明学生容易卡在哪里，不能只写“综合运用较难”。
+- absorption：学生吸收情况。180-300 字，必须结合 todayContent/keyPoints/difficultPoints 来写：哪些内容吸收较好，哪些内容还需要练习，原因是什么，后续如何巩固。不要写空泛评价。
+- classroomPerformance：课堂表现。80-160 字，结合课堂专注度、互动、答题、思路跟进情况来写；如果原文没有提到，要基于课堂记录谨慎推断。
+- homework：作业布置。原文有作业就按原文整理；没有提到时写“暂无明确作业安排，建议围绕本节重点进行针对性巩固。”
+- nextSuggestion：后续学习建议。120-220 字，必须给出和本节课内容对应的具体练习建议。
+- parentFeedback：可直接发给家长的一段话。220-380 字，语气自然，必须包含今天学习的具体内容、孩子掌握情况、当前还需加强的具体点、作业或课后巩固建议。
 
 话术风格：${style}
 
-要求：
-- 语言自然，适合老师发给家长。
-- 不要过度夸张，也不要只写空泛套话。
+写作要求：
+- 不要机械套模板，不要只写“基础较好、继续努力”这类空话。
+- 如果原始记录信息很少，可以合理补充“建议性表达”，但不要编造具体成绩、排名或不存在的课堂事件。
+- 内容要适合老师发给家长，客观、具体、温和。
 - 必须只返回 JSON，不要返回解释、Markdown 或代码块。
 - JSON 的 key 必须严格使用上面列出的英文 key。
 
@@ -89,19 +162,27 @@ ${rawText}
   } catch (error) {
     console.error(error);
 
+    const message = error?.message || "";
+
     if (
       error?.name === "APIConnectionTimeoutError" ||
       error?.constructor?.name === "APIConnectionTimeoutError" ||
-      error?.message?.toLowerCase().includes("timed out")
+      message.toLowerCase().includes("timed out")
     ) {
       return res.status(504).json({
+        error: "连接 AI 接口超时。请检查 OPENAI_BASE_URL、网络，或确认转发服务可访问。",
+      });
+    }
+
+    if (error?.status === 503 && message.toLowerCase().includes("no available channel")) {
+      return res.status(503).json({
         error:
-          "连接 OpenAI 超时。请检查网络/代理，或在 .env 中配置可访问的 OPENAI_BASE_URL。",
+          "当前 API 分组没有可用的模型通道。请在部署平台环境变量中删除 OPENAI_MODEL，或改成 ikuncode 支持的模型，例如 gpt-5.5。",
       });
     }
 
     res.status(500).json({
-      error: error?.message || "AI 生成失败，请检查 API Key、模型名称或网络连接。",
+      error: message || "AI 生成失败，请检查 API Key、模型名称或网络连接。",
     });
   }
 });

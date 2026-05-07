@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
+const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
+const STUDENTS_API_URL = "/api/students";
 
 const emptyResult = {
   studentName: "",
@@ -99,7 +100,7 @@ function buildTemplateExcel(result, meta) {
   <style>
     table { border-collapse: collapse; table-layout: fixed; }
     td { border: 1px solid #000; font-family: "SimSun", "Microsoft YaHei", Arial, sans-serif; font-size: 16pt; vertical-align: middle; padding: 4px; }
-    .top { height: 62px; text-align: center; font-size: 22pt; font-weight: 700; color: #ff0000; border-bottom: 1px solid #000; white-space: nowrap; }
+    .top { height: 62px; text-align: center; font-size: 22pt; font-weight: 700; color: #ff0000; white-space: nowrap; }
     .label { height: 46px; text-align: center; font-size: 12pt; font-weight: 700; white-space: nowrap; }
     .smallCenter { text-align: center; font-size: 14pt; }
     .orange { background: #f4b183; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
@@ -108,22 +109,13 @@ function buildTemplateExcel(result, meta) {
     .cyan { background: #c9f1ef; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
     .text { vertical-align: top; line-height: 1.45; font-size: 16pt; padding: 10px 8px; white-space: normal; mso-wrap-style: square; }
     .homeworkBox { text-align: center; font-size: 16pt; border: 2px solid #107c41; }
-    .noBorderTop { border-top: 0; }
   </style>
 </head>
 <body>
   <table width="1660">
-    <col width="125" />
-    <col width="125" />
-    <col width="165" />
-    <col width="240" />
-    <col width="125" />
-    <col width="175" />
-    <col width="150" />
-    <col width="205" />
-    <col width="205" />
-    <col width="205" />
-    <col width="205" />
+    <col width="125" /><col width="125" /><col width="165" /><col width="240" />
+    <col width="125" /><col width="175" /><col width="150" /><col width="205" />
+    <col width="205" /><col width="205" /><col width="205" />
     <tr>
       <td class="top" colspan="3">${lessonTitle}</td>
       <td class="top" colspan="4">【上课时间】${classDate}&nbsp;&nbsp;${classTime}</td>
@@ -169,7 +161,10 @@ export default function App() {
   const [style, setStyle] = useState("温和鼓励");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [studentError, setStudentError] = useState("");
   const [copied, setCopied] = useState("");
+  const [students, setStudents] = useState([]);
+  const [newStudentName, setNewStudentName] = useState("");
   const [result, setResult] = useState(emptyResult);
   const [meta, setMeta] = useState({
     lessonNumber: "3",
@@ -192,6 +187,78 @@ export default function App() {
     return `${header.join("\t")}\n${row.join("\t")}`;
   }, [hasResult, result]);
 
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  async function loadStudents() {
+    try {
+      const response = await fetch(STUDENTS_API_URL);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "读取学生名单失败");
+      }
+
+      setStudents(data.students || []);
+    } catch (err) {
+      setStudentError(err.message || "读取学生名单失败");
+    }
+  }
+
+  async function addStudent() {
+    const name = newStudentName.trim();
+
+    if (!name) {
+      setStudentError("请输入学生姓名。");
+      return;
+    }
+
+    try {
+      setStudentError("");
+      const response = await fetch(STUDENTS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "保存学生姓名失败");
+      }
+
+      setStudents(data.students || []);
+      setNewStudentName("");
+      updateResult("studentName", name);
+    } catch (err) {
+      setStudentError(err.message || "保存学生姓名失败");
+    }
+  }
+
+  async function deleteStudent() {
+    if (!result.studentName) {
+      setStudentError("请先选择要删除的学生。");
+      return;
+    }
+
+    try {
+      setStudentError("");
+      const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(result.studentName)}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "删除学生姓名失败");
+      }
+
+      setStudents(data.students || []);
+      updateResult("studentName", "");
+    } catch (err) {
+      setStudentError(err.message || "删除学生姓名失败");
+    }
+  }
+
   function updateResult(key, value) {
     setResult((prev) => ({ ...prev, [key]: value }));
   }
@@ -211,7 +278,7 @@ export default function App() {
     setCopied("");
 
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(FEEDBACK_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rawText, style }),
@@ -223,12 +290,13 @@ export default function App() {
         throw new Error(data.error || "AI 生成失败");
       }
 
-      setResult({ ...emptyResult, ...data });
+      setResult((prev) => ({
+        ...emptyResult,
+        ...data,
+        studentName: prev.studentName || data.studentName || "",
+      }));
     } catch (err) {
-      setError(
-        err.message ||
-          "请求失败。请确认 server.js 已经运行，默认后端地址是 http://localhost:3001",
-      );
+      setError(err.message || "请求失败。请确认 server.js 已经运行。");
     } finally {
       setLoading(false);
     }
@@ -298,10 +366,38 @@ export default function App() {
 
         <section className="card">
           <div className="cardTitleRow">
-            <h2>2. Excel 模板信息</h2>
+            <h2>2. 基础信息</h2>
             <button className="smallBtn dark" disabled={!hasResult} onClick={downloadExcel}>
               下载模板 Excel
             </button>
+          </div>
+
+          <div className="studentManager">
+            <label className="textInput">
+              <span>学员姓名</span>
+              <select value={result.studentName} onChange={(e) => updateResult("studentName", e.target.value)}>
+                <option value="">选择学生</option>
+                {students.map((student) => (
+                  <option key={student} value={student}>
+                    {student}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="inlineActions">
+              <input
+                value={newStudentName}
+                onChange={(e) => setNewStudentName(e.target.value)}
+                placeholder="新增学生姓名"
+              />
+              <button className="smallBtn" type="button" onClick={addStudent}>
+                添加
+              </button>
+              <button className="smallBtn danger" type="button" disabled={!result.studentName} onClick={deleteStudent}>
+                删除所选
+              </button>
+            </div>
+            {studentError && <div className="miniError">{studentError}</div>}
           </div>
 
           <div className="metaGrid">
@@ -366,18 +462,16 @@ export default function App() {
 
       <section className="card fullCard">
         <h2>3. AI 自动分类结果</h2>
-        <p className="hint">
-          下面内容可以手动修改。修改后，下载模板 Excel 时会使用你修改后的内容。
-        </p>
+        <p className="hint">下面内容可以手动修改。修改后，下载模板 Excel 时会使用你修改后的内容。</p>
 
         <div className="grid">
-          {fields.slice(0, -1).map(([key, label]) => (
+          {fields.slice(1, -1).map(([key, label]) => (
             <EditableItem
               key={key}
               label={label}
               value={result[key]}
               onChange={(value) => updateResult(key, value)}
-              large={!["studentName", "courseName"].includes(key)}
+              large
             />
           ))}
         </div>
@@ -664,14 +758,25 @@ textarea:focus {
   border-color: #111827;
 }
 
-.buttonGroup {
+.smallBtn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.buttonGroup,
+.inlineActions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 14px;
 }
 
-.errorBox {
+.inlineActions input {
+  flex: 1 1 160px;
+}
+
+.errorBox,
+.miniError {
   margin-top: 12px;
   background: #fef2f2;
   color: #b91c1c;
@@ -680,10 +785,20 @@ textarea:focus {
   font-size: 14px;
 }
 
+.miniError {
+  padding: 9px 10px;
+}
+
 .hint {
   margin: 8px 0 18px;
   color: #64748b;
   font-size: 14px;
+}
+
+.studentManager {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .grid,
