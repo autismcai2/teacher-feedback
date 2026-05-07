@@ -14,7 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "data");
 const studentsFile = path.join(dataDir, "students.json");
-const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL);
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
@@ -40,6 +40,16 @@ const fallbackResult = {
   parentFeedback: "",
 };
 
+function normalizeSupabaseUrl(value) {
+  if (!value) return "";
+
+  return value
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/\/+$/, "")
+    .replace(/\/rest\/v1$/i, "");
+}
+
 function publicStorageError(action, error) {
   const message = error?.message || "未知错误";
   const lower = message.toLowerCase();
@@ -58,6 +68,10 @@ function publicStorageError(action, error) {
 
   if (lower.includes("fetch failed") || lower.includes("invalid url") || lower.includes("enotfound")) {
     return `${action}失败：SUPABASE_URL 可能填错了，请确认格式类似 https://xxxx.supabase.co。`;
+  }
+
+  if (lower.includes("invalid path specified")) {
+    return `${action}失败：SUPABASE_URL 请填写项目根地址，格式类似 https://xxxx.supabase.co，不要填写 /rest/v1 结尾的地址。`;
   }
 
   return `${action}失败：${message}`;
