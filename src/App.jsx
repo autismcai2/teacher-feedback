@@ -58,6 +58,25 @@ function escapeHtml(value) {
     .replace(/\n/g, "<br />");
 }
 
+function estimateRowHeight(text, minHeight, charsPerLine, lineHeight) {
+  const plain = String(text || "");
+  const explicitLines = plain.split("\n");
+  const lineCount = explicitLines.reduce((total, line) => {
+    return total + Math.max(1, Math.ceil(line.length / charsPerLine));
+  }, 0);
+
+  return Math.max(minHeight, lineCount * lineHeight + 42);
+}
+
+function safeFilePart(value, fallback) {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "");
+
+  return cleaned || fallback;
+}
+
 function copyText(text) {
   if (!text) return;
   navigator.clipboard.writeText(text);
@@ -78,6 +97,16 @@ function buildTemplateExcel(result, meta) {
   const homeworkStatus = escapeHtml(meta.homeworkStatus || "已完成");
   const seriousness = escapeHtml("★".repeat(Number(meta.seriousness) || 4));
   const interaction = escapeHtml("★".repeat(Number(meta.interaction) || 3));
+  const contentHeight = estimateRowHeight(result.todayContent, 220, 46, 32);
+  const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
+  const keyDifficultHeight = estimateRowHeight(
+    `${result.keyPoints}\n\n${result.difficultPoints}`,
+    520,
+    46,
+    32,
+  );
+  const homeworkHeight = estimateRowHeight(result.homework, 260, 28, 32);
+  const bottomHeight = Math.max(keyDifficultHeight, homeworkHeight);
 
   return `
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -107,7 +136,7 @@ function buildTemplateExcel(result, meta) {
     .blue { background: #8eaadb; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
     .green { background: #a9d18e; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
     .cyan { background: #c9f1ef; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
-    .text { vertical-align: top; line-height: 1.45; font-size: 16pt; padding: 10px 8px; white-space: normal; mso-wrap-style: square; }
+    .text { vertical-align: top; line-height: 1.45; font-size: 15pt; padding: 10px 8px; white-space: normal; mso-wrap-style: square; mso-data-placement: same-cell; }
     .homeworkBox { text-align: center; font-size: 16pt; border: 2px solid #107c41; }
   </style>
 </head>
@@ -135,19 +164,19 @@ function buildTemplateExcel(result, meta) {
       <td class="smallCenter" colspan="3">认真程度：${seriousness}&nbsp;&nbsp;&nbsp;&nbsp;互动性：${interaction}</td>
       <td></td>
       <td class="smallCenter">${homeworkStatus}</td>
-      <td class="text" colspan="4" rowspan="3">${absorption}</td>
+      <td class="text" colspan="4" rowspan="3" style="height:${absorptionHeight}px">${absorption}</td>
     </tr>
     <tr>
       <td class="orange" colspan="7">一、本节课教学内容</td>
     </tr>
-    <tr height="196">
+    <tr height="${contentHeight}">
       <td class="text" colspan="7">${content}</td>
     </tr>
     <tr>
       <td class="blue" colspan="7">二、本节课重难点</td>
       <td class="cyan" colspan="4">四、作业布置</td>
     </tr>
-    <tr height="420">
+    <tr height="${bottomHeight}">
       <td class="text" colspan="7">一、知识重点<br />${keyPoints}<br /><br />二、核心难点<br />${difficultPoints}</td>
       <td class="homeworkBox" colspan="4">${homework}</td>
     </tr>
@@ -312,6 +341,9 @@ export default function App() {
     if (!hasResult) return;
 
     const html = buildTemplateExcel(result, meta);
+    const studentName = safeFilePart(result.studentName, "学生");
+    const courseName = safeFilePart(result.courseName, "课程");
+    const lessonName = safeFilePart(`第${meta.lessonNumber || 1}次课`, "课次");
     const blob = new Blob(["\ufeff", html], {
       type: "application/vnd.ms-excel;charset=utf-8",
     });
@@ -319,7 +351,7 @@ export default function App() {
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `${result.studentName || "学生"}-课堂反馈模板.xls`;
+    link.download = `${studentName}-${courseName}-${lessonName}.xls`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -711,7 +743,7 @@ textarea:focus {
 }
 
 .feedbackBox.compact {
-  min-height: 150px;
+  min-height: 220px;
 }
 
 .primaryBtn {
@@ -913,11 +945,11 @@ textarea:focus {
 }
 
 .item textarea {
-  min-height: 64px;
+  min-height: 96px;
 }
 
 .item.large textarea {
-  min-height: 96px;
+  min-height: 190px;
 }
 
 @media (max-width: 900px) {
