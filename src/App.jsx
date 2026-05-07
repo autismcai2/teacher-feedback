@@ -2,6 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
+const CLASS_TIME_OPTIONS = [
+  "8:00-10:00",
+  "10:10-12:10",
+  "13:10-15:10",
+  "14:00-16:00",
+  "16:00-18:00",
+  "15:10-17:10",
+  "17:10-19:10",
+  "19:30-21:30",
+  "19:00-21:00",
+];
 
 const emptyResult = {
   studentName: "",
@@ -209,6 +220,7 @@ export default function App() {
     lessonNumber: "3",
     classDate: getTodayInputValue(),
     classTime: "10:10-12:10",
+    classTimeMode: "10:10-12:10",
     teacherName: "蔡沁沛",
     attendance: "√",
     seriousness: 4,
@@ -454,7 +466,7 @@ export default function App() {
               suffix="次课"
             />
             <TextInput label="日期" type="date" value={meta.classDate} onChange={(v) => updateMeta("classDate", v)} />
-            <TextInput label="时间" value={meta.classTime} onChange={(v) => updateMeta("classTime", v)} />
+            <ClassTimeInput meta={meta} updateMeta={updateMeta} />
             <SelectInput
               label="任课老师"
               value={meta.teacherName}
@@ -564,6 +576,35 @@ function SelectInput({ label, value, options, onChange }) {
         ))}
       </select>
     </label>
+  );
+}
+
+function ClassTimeInput({ meta, updateMeta }) {
+  return (
+    <div className="textInput">
+      <span>时间</span>
+      <select
+        value={meta.classTimeMode}
+        onChange={(e) => {
+          const value = e.target.value;
+          updateMeta("classTimeMode", value);
+          updateMeta("classTime", value === "其他" ? "" : value);
+        }}
+      >
+        {CLASS_TIME_OPTIONS.map((time) => (
+          <option key={time}>{time}</option>
+        ))}
+        <option>其他</option>
+      </select>
+      {meta.classTimeMode === "其他" && (
+        <input
+          className="otherTimeInput"
+          value={meta.classTime}
+          onChange={(e) => updateMeta("classTime", e.target.value)}
+          placeholder="填写其他时间，例如 9:00-11:00"
+        />
+      )}
+    </div>
   );
 }
 
@@ -870,6 +911,10 @@ textarea:focus {
 .textInput input,
 .textInput select {
   width: 100%;
+}
+
+.otherTimeInput {
+  margin-top: 8px;
 }
 
 .affixInput {
