@@ -470,7 +470,7 @@ export default function App() {
             <SelectInput
               label="任课老师"
               value={meta.teacherName}
-              options={["蔡沁沛", "陈思桦"]}
+              options={["陈思桦", "蔡沁沛"]}
               onChange={(v) => updateMeta("teacherName", v)}
             />
             <SegmentedInput
