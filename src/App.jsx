@@ -110,7 +110,7 @@ function buildTemplateExcel(result, meta) {
   const absorption = escapeHtml(result.absorption);
   const homework = escapeHtml(result.homework);
   const studentName = escapeHtml(result.studentName || "同学");
-  const teacherName = escapeHtml(meta.teacherName || "蔡沁沛");
+  const teacherName = escapeHtml(meta.teacherName || "陈思桦");
   const lessonTitle = escapeHtml(`第${meta.lessonNumber || 1}次课`);
   const classDate = escapeHtml(formatDateLabel(meta.classDate));
   const classTime = escapeHtml(meta.classTime || "10:10-12:10");
@@ -217,11 +217,11 @@ export default function App() {
   const [newStudentName, setNewStudentName] = useState("");
   const [result, setResult] = useState(emptyResult);
   const [meta, setMeta] = useState({
-    lessonNumber: "3",
+    lessonNumber: "1",
     classDate: getTodayInputValue(),
     classTime: "10:10-12:10",
     classTimeMode: "10:10-12:10",
-    teacherName: "蔡沁沛",
+    teacherName: "陈思桦",
     attendance: "√",
     seriousness: 4,
     interaction: 3,
