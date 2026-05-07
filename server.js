@@ -40,6 +40,13 @@ const fallbackResult = {
   parentFeedback: "",
 };
 
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    storage: useSupabase ? "supabase" : "local",
+  });
+});
+
 function normalizeSupabaseUrl(value) {
   if (!value) return "";
 

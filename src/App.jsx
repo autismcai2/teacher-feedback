@@ -82,6 +82,16 @@ function copyText(text) {
   navigator.clipboard.writeText(text);
 }
 
+async function readJsonResponse(response, fallbackMessage) {
+  const text = await response.text();
+
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`${fallbackMessage}：接口返回了网页而不是 JSON，请确认当前部署包含后端 API。`);
+  }
+}
+
 function buildTemplateExcel(result, meta) {
   const content = escapeHtml(result.todayContent);
   const keyPoints = escapeHtml(result.keyPoints);
@@ -223,7 +233,7 @@ export default function App() {
   async function loadStudents() {
     try {
       const response = await fetch(STUDENTS_API_URL);
-      const data = await response.json();
+      const data = await readJsonResponse(response, "读取学生名单失败");
 
       if (!response.ok) {
         throw new Error(data.error || "读取学生名单失败");
@@ -250,7 +260,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response, "保存学生姓名失败");
 
       if (!response.ok) {
         throw new Error(data.error || "保存学生姓名失败");
@@ -275,7 +285,7 @@ export default function App() {
       const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(result.studentName)}`, {
         method: "DELETE",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response, "删除学生姓名失败");
 
       if (!response.ok) {
         throw new Error(data.error || "删除学生姓名失败");
@@ -313,7 +323,7 @@ export default function App() {
         body: JSON.stringify({ rawText, style }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response, "AI 生成失败");
 
       if (!response.ok) {
         throw new Error(data.error || "AI 生成失败");
