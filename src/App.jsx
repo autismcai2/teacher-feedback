@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
-const STUDENT_LESSON_STORAGE_KEY = "teacher-feedback.student-lessons.v1";
+const DEFAULT_TEACHER_NAME = "陈思桦";
+const TEACHER_OPTIONS = ["陈思桦", "蔡沁沛"];
+const STUDENT_LESSON_STORAGE_KEY = "teacher-feedback.teacher-student-lessons.v1";
+const LEGACY_STUDENT_LESSON_STORAGE_KEY = "teacher-feedback.student-lessons.v1";
 const CLASS_TIME_OPTIONS = [
   "8:00-10:00",
   "10:10-12:10",
@@ -121,6 +124,17 @@ function normalizeStudentLessonMap(lessons) {
   );
 }
 
+function readStudentLessonStore() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(STUDENT_LESSON_STORAGE_KEY) || "{}");
+    return stored && typeof stored === "object" ? stored : {};
+  } catch {
+    return {};
+  }
+}
+
 function mergeStudentLessonMaps(...lessonMaps) {
   return lessonMaps.reduce((merged, lessonMap) => {
     const normalized = normalizeStudentLessonMap(lessonMap);
@@ -133,21 +147,36 @@ function mergeStudentLessonMaps(...lessonMaps) {
   }, {});
 }
 
-function readStoredStudentLessons() {
+function readStoredStudentLessons(teacherName = DEFAULT_TEACHER_NAME) {
   if (typeof window === "undefined") return {};
 
+  const store = readStudentLessonStore();
+  const teacherLessons = normalizeStudentLessonMap(store[teacherName]);
+
+  if (teacherName !== DEFAULT_TEACHER_NAME) {
+    return teacherLessons;
+  }
+
   try {
-    return normalizeStudentLessonMap(JSON.parse(window.localStorage.getItem(STUDENT_LESSON_STORAGE_KEY) || "{}"));
+    const legacyLessons = normalizeStudentLessonMap(
+      JSON.parse(window.localStorage.getItem(LEGACY_STUDENT_LESSON_STORAGE_KEY) || "{}"),
+    );
+    return mergeStudentLessonMaps(legacyLessons, teacherLessons);
   } catch {
-    return {};
+    return teacherLessons;
   }
 }
 
-function writeStoredStudentLessons(lessons) {
+function writeStoredStudentLessons(teacherName, lessons) {
   if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.setItem(STUDENT_LESSON_STORAGE_KEY, JSON.stringify(normalizeStudentLessonMap(lessons)));
+    const store = readStudentLessonStore();
+    const nextStore = {
+      ...store,
+      [teacherName]: normalizeStudentLessonMap(lessons),
+    };
+    window.localStorage.setItem(STUDENT_LESSON_STORAGE_KEY, JSON.stringify(nextStore));
   } catch {
     // 浏览器禁用本地存储时，后端同步仍然可以保存课次。
   }
@@ -175,7 +204,7 @@ function buildTemplateExcel(result, meta) {
   const absorption = escapeHtml(result.absorption);
   const homework = escapeHtml(result.homework);
   const studentName = escapeHtml(result.studentName || "同学");
-  const teacherName = escapeHtml(meta.teacherName || "陈思桦");
+  const teacherName = escapeHtml(meta.teacherName || DEFAULT_TEACHER_NAME);
   const lessonTitle = escapeHtml(`第${meta.lessonNumber || 1}次课`);
   const classDate = escapeHtml(formatDateLabel(meta.classDate));
   const classTime = escapeHtml(meta.classTime || "10:10-12:10");
@@ -279,7 +308,7 @@ export default function App() {
   const [studentError, setStudentError] = useState("");
   const [copied, setCopied] = useState("");
   const [students, setStudents] = useState([]);
-  const [studentLessons, setStudentLessons] = useState(() => readStoredStudentLessons());
+  const [studentLessons, setStudentLessons] = useState(() => readStoredStudentLessons(DEFAULT_TEACHER_NAME));
   const [newStudentName, setNewStudentName] = useState("");
   const [result, setResult] = useState(emptyResult);
   const [meta, setMeta] = useState({
@@ -287,7 +316,7 @@ export default function App() {
     classDate: getTodayInputValue(),
     classTime: "10:10-12:10",
     classTimeMode: "10:10-12:10",
-    teacherName: "陈思桦",
+    teacherName: DEFAULT_TEACHER_NAME,
     attendance: "√",
     seriousness: 4,
     interaction: 3,
@@ -307,37 +336,54 @@ export default function App() {
 
   useEffect(() => {
     async function loadStudents() {
+      const teacherName = meta.teacherName;
+
       try {
-        const response = await fetch(STUDENTS_API_URL);
+        const response = await fetch(`${STUDENTS_API_URL}?teacherName=${encodeURIComponent(teacherName)}`);
         const data = await readJsonResponse(response, "读取学生名单失败");
 
         if (!response.ok) {
           throw new Error(data.error || "读取学生名单失败");
         }
 
-        const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(), data.studentLessons);
+        const nextStudents = data.students || [];
+        const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(teacherName), data.studentLessons);
 
-        setStudents(data.students || []);
+        setStudents(nextStudents);
         setStudentLessons(nextLessons);
-        writeStoredStudentLessons(nextLessons);
+        writeStoredStudentLessons(teacherName, nextLessons);
+
+        setResult((prev) => {
+          if (!prev.studentName || nextStudents.includes(prev.studentName)) return prev;
+          return { ...prev, studentName: "" };
+        });
       } catch (err) {
         setStudentError(err.message || "读取学生名单失败");
       }
     }
 
     loadStudents();
-  }, []);
+  }, [meta.teacherName]);
 
-  function syncStudentLessons(serverLessons, deletedStudentName = "") {
-    const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(), serverLessons);
+  function syncStudentLessons(serverLessons, deletedStudentName = "", teacherName = meta.teacherName) {
+    const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(teacherName), serverLessons);
 
     if (deletedStudentName) {
       delete nextLessons[deletedStudentName];
     }
 
     setStudentLessons(nextLessons);
-    writeStoredStudentLessons(nextLessons);
+    writeStoredStudentLessons(teacherName, nextLessons);
     return nextLessons;
+  }
+
+  function selectTeacher(teacherName) {
+    updateMeta("teacherName", teacherName);
+    updateMeta("lessonNumber", "1");
+    updateResult("studentName", "");
+    setStudents([]);
+    setStudentLessons(readStoredStudentLessons(teacherName));
+    setStudentError("");
   }
 
   function selectStudent(name, lessons = studentLessons) {
@@ -363,7 +409,7 @@ export default function App() {
       const response = await fetch(STUDENTS_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ teacherName: meta.teacherName, name }),
       });
       const data = await readJsonResponse(response, "保存学生姓名失败");
 
@@ -372,7 +418,7 @@ export default function App() {
       }
 
       setStudents(data.students || []);
-      const nextLessons = syncStudentLessons(data.studentLessons);
+      const nextLessons = syncStudentLessons(data.studentLessons, "", meta.teacherName);
       setNewStudentName("");
       selectStudent(name, nextLessons);
     } catch (err) {
@@ -389,9 +435,14 @@ export default function App() {
     try {
       setStudentError("");
       const deletingStudentName = result.studentName;
-      const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(result.studentName)}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `${STUDENTS_API_URL}/${encodeURIComponent(result.studentName)}?teacherName=${encodeURIComponent(
+          meta.teacherName,
+        )}`,
+        {
+          method: "DELETE",
+        },
+      );
       const data = await readJsonResponse(response, "删除学生姓名失败");
 
       if (!response.ok) {
@@ -399,7 +450,7 @@ export default function App() {
       }
 
       setStudents(data.students || []);
-      syncStudentLessons(data.studentLessons, deletingStudentName);
+      syncStudentLessons(data.studentLessons, deletingStudentName, meta.teacherName);
       updateResult("studentName", "");
       updateMeta("lessonNumber", "1");
     } catch (err) {
@@ -446,7 +497,7 @@ export default function App() {
         studentName: prev.studentName || data.studentName || "",
       }));
 
-      if (!result.studentName && nextStudentName) {
+      if (!result.studentName && students.includes(nextStudentName)) {
         updateMeta("lessonNumber", nextLessonNumberForStudent(studentLessons, nextStudentName));
       }
     } catch (err) {
@@ -495,13 +546,13 @@ export default function App() {
     };
 
     setStudentLessons(optimisticLessons);
-    writeStoredStudentLessons(optimisticLessons);
+    writeStoredStudentLessons(meta.teacherName, optimisticLessons);
 
     try {
       const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(studentName)}/lesson`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lessonNumber: normalizedLessonNumber }),
+        body: JSON.stringify({ teacherName: meta.teacherName, lessonNumber: normalizedLessonNumber }),
       });
       const data = await readJsonResponse(response, "保存学生课次失败");
 
@@ -509,7 +560,7 @@ export default function App() {
         throw new Error(data.error || "保存学生课次失败");
       }
 
-      syncStudentLessons(data.studentLessons);
+      syncStudentLessons(data.studentLessons, "", meta.teacherName);
     } catch (err) {
       console.warn("保存学生课次到后端失败，已保存在当前浏览器。", err);
     }
@@ -563,9 +614,19 @@ export default function App() {
 
           <div className="studentManager">
             <label className="textInput">
+              <span>任课老师</span>
+              <select value={meta.teacherName} onChange={(e) => selectTeacher(e.target.value)}>
+                {TEACHER_OPTIONS.map((teacher) => (
+                  <option key={teacher} value={teacher}>
+                    {teacher}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="textInput">
               <span>学员姓名</span>
               <select value={result.studentName} onChange={(e) => selectStudent(e.target.value)}>
-                <option value="">选择学生</option>
+                <option value="">选择{meta.teacherName}的学生</option>
                 {students.map((student) => (
                   <option key={student} value={student}>
                     {student}
@@ -577,7 +638,7 @@ export default function App() {
               <input
                 value={newStudentName}
                 onChange={(e) => setNewStudentName(e.target.value)}
-                placeholder="新增学生姓名"
+                placeholder={`新增${meta.teacherName}的学生`}
               />
               <button className="smallBtn" type="button" onClick={addStudent}>
                 添加
@@ -611,12 +672,6 @@ export default function App() {
             />
             <TextInput label="日期" type="date" value={meta.classDate} onChange={(v) => updateMeta("classDate", v)} />
             <ClassTimeInput meta={meta} updateMeta={updateMeta} />
-            <SelectInput
-              label="任课老师"
-              value={meta.teacherName}
-              options={["陈思桦", "蔡沁沛"]}
-              onChange={(v) => updateMeta("teacherName", v)}
-            />
             <SegmentedInput
               label="出席情况"
               value={meta.attendance}
@@ -706,19 +761,6 @@ function TextInput({ label, note, value, onChange, prefix, suffix, ...props }) {
       ) : (
         <input value={value} onChange={(e) => onChange(e.target.value)} {...props} />
       )}
-    </label>
-  );
-}
-
-function SelectInput({ label, value, options, onChange }) {
-  return (
-    <label className="textInput">
-      <span>{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
     </label>
   );
 }
