@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Copy, Download, Plus, Sparkles, Trash2 } from "lucide-react";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
@@ -576,17 +577,22 @@ export default function App() {
       <style>{css}</style>
 
       <header className="hero">
-        <div className="tag">AI 课堂反馈生成器</div>
-        <h1>输入课堂记录，自动整理成可编辑的课后反馈表</h1>
-        <p>
-          适合教培老师课后快速整理：教学内容、重点难点、学生吸收情况、作业布置和家长反馈话术。生成后可以直接下载成接近模板样式的 Excel。
-        </p>
+        <div>
+          <div className="tag">AI 课堂反馈生成器</div>
+          <h1>课堂反馈工作台</h1>
+          <p>输入课堂记录，生成可编辑的课后反馈和 Excel 模板。</p>
+        </div>
+        <div className="heroMeta" aria-label="当前基础信息">
+          <span>{meta.teacherName}</span>
+          <span>{result.studentName || "未选择学生"}</span>
+          <span>第 {currentLessonNumber} 次课</span>
+        </div>
       </header>
 
       <main className="layout">
         <section className="card">
           <div className="cardTitleRow">
-            <h2>1. 输入课堂记录</h2>
+            <h2>输入课堂记录</h2>
             <select value={style} onChange={(e) => setStyle(e.target.value)}>
               <option>温和鼓励</option>
               <option>专业正式</option>
@@ -605,14 +611,16 @@ export default function App() {
           {error && <div className="errorBox">{error}</div>}
 
           <button className="primaryBtn" onClick={generateFeedback} disabled={loading}>
+            <Sparkles size={18} aria-hidden="true" />
             {loading ? "AI 正在生成中..." : "生成分类结果和反馈话术"}
           </button>
         </section>
 
         <section className="card">
           <div className="cardTitleRow">
-            <h2>2. 基础信息</h2>
+            <h2>基础信息</h2>
             <button className="smallBtn dark" disabled={!hasResult} onClick={downloadExcel}>
+              <Download size={16} aria-hidden="true" />
               下载模板 Excel
             </button>
           </div>
@@ -646,9 +654,11 @@ export default function App() {
                 placeholder={`新增${meta.teacherName}的学生`}
               />
               <button className="smallBtn" type="button" onClick={addStudent}>
+                <Plus size={16} aria-hidden="true" />
                 添加
               </button>
               <button className="smallBtn danger" type="button" disabled={!result.studentName} onClick={deleteStudent}>
+                <Trash2 size={16} aria-hidden="true" />
                 删除所选
               </button>
             </div>
@@ -703,6 +713,7 @@ export default function App() {
               disabled={!hasResult}
               onClick={() => handleCopy("feedback", result.parentFeedback)}
             >
+              <Copy size={16} aria-hidden="true" />
               {copied === "feedback" ? "已复制" : "复制家长话术"}
             </button>
             <button
@@ -710,6 +721,7 @@ export default function App() {
               disabled={!hasResult}
               onClick={() => handleCopy("excel", excelText)}
             >
+              <Copy size={16} aria-hidden="true" />
               {copied === "excel" ? "已复制" : "复制普通表格"}
             </button>
           </div>
@@ -717,7 +729,7 @@ export default function App() {
       </main>
 
       <section className="card fullCard">
-        <h2>3. AI 自动分类结果</h2>
+        <h2>AI 自动分类结果</h2>
         <p className="hint">下面内容可以手动修改。修改后，下载模板 Excel 时会使用你修改后的内容。</p>
 
         <div className="grid">
@@ -856,11 +868,30 @@ const css = `
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: light;
+  --ink: #172033;
+  --muted: #667085;
+  --line: #d9e1ea;
+  --line-strong: #c8d2df;
+  --surface: #ffffff;
+  --surface-soft: #f7f9fb;
+  --page: #edf2f7;
+  --brand: #145c58;
+  --brand-strong: #0f3f3d;
+  --brand-soft: #e7f4f1;
+  --warning: #8a5a00;
+  --danger: #b42318;
+  --danger-soft: #fff1f0;
+  --shadow: 0 18px 45px rgba(27, 39, 61, 0.08);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
-  background: #f4f6f8;
-  color: #172033;
+  background:
+    linear-gradient(180deg, #f8fbfc 0%, var(--page) 42%, #f5f7fa 100%);
+  color: var(--ink);
 }
 
 button,
@@ -872,61 +903,88 @@ select {
 
 .page {
   min-height: 100vh;
-  padding: 28px;
-}
-
-.hero,
-.card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  padding: 22px;
 }
 
 .hero {
-  max-width: 1180px;
-  margin: 0 auto 22px;
-  padding: 28px;
+  max-width: 1320px;
+  margin: 0 auto 16px;
+  min-height: 96px;
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 
 .tag {
   display: inline-block;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #334155;
-  font-size: 14px;
-  margin-bottom: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
 }
 
 .hero h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 25px;
   line-height: 1.25;
+  letter-spacing: 0;
 }
 
 .hero p {
-  max-width: 900px;
-  margin: 12px 0 0;
-  line-height: 1.8;
-  color: #64748b;
+  margin: 7px 0 0;
+  line-height: 1.6;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.heroMeta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.heroMeta span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 8px 10px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .layout {
-  max-width: 1180px;
+  max-width: 1320px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
+  grid-template-columns: minmax(420px, 1.05fr) minmax(420px, 0.95fr);
+  gap: 16px;
 }
 
 .card {
-  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 20px;
 }
 
 .fullCard {
-  max-width: 1180px;
-  margin: 22px auto 0;
+  max-width: 1320px;
+  margin: 16px auto 0;
 }
 
 .cardTitleRow {
@@ -934,48 +992,57 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 38px;
   margin-bottom: 14px;
 }
 
 h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
+  letter-spacing: 0;
 }
 
 h3 {
   margin: 22px 0 10px;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 input,
 select {
-  border: 1px solid #d8dee9;
+  min-height: 42px;
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--surface);
+  color: var(--ink);
   outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 textarea {
   width: 100%;
-  border: 1px solid #d8dee9;
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 14px;
   outline: none;
   resize: vertical;
   line-height: 1.7;
   font-size: 14px;
-  background: #f8fafc;
+  background: var(--surface-soft);
+  color: var(--ink);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 input:focus,
+select:focus,
 textarea:focus {
-  border-color: #64748b;
-  background: #ffffff;
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(20, 92, 88, 0.12);
 }
 
 .bigInput {
-  min-height: 360px;
+  min-height: 392px;
 }
 
 .feedbackBox {
@@ -983,24 +1050,32 @@ textarea:focus {
 }
 
 .feedbackBox.compact {
-  min-height: 220px;
+  min-height: 210px;
 }
 
 .primaryBtn {
   margin-top: 14px;
   width: 100%;
+  min-height: 46px;
   border: none;
   border-radius: 6px;
   padding: 14px 16px;
-  background: #111827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--brand);
   color: #ffffff;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: 0 10px 20px rgba(20, 92, 88, 0.18);
 }
 
 .primaryBtn:hover {
-  background: #334155;
+  background: var(--brand-strong);
+  transform: translateY(-1px);
 }
 
 .primaryBtn:disabled,
@@ -1010,35 +1085,48 @@ textarea:focus {
 }
 
 .smallBtn {
-  border: 1px solid #d8dee9;
+  min-height: 38px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 10px 14px;
-  background: #ffffff;
-  color: #172033;
+  padding: 9px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--surface);
+  color: var(--ink);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .smallBtn:hover {
-  background: #f8fafc;
+  border-color: var(--line-strong);
+  background: var(--surface-soft);
 }
 
 .smallBtn.dark {
-  background: #111827;
+  background: var(--ink);
   color: #ffffff;
-  border-color: #111827;
+  border-color: var(--ink);
 }
 
 .smallBtn.danger {
-  color: #b91c1c;
-  border-color: #fecaca;
+  color: var(--danger);
+  border-color: #ffd1cc;
+  background: #fffafa;
+}
+
+.smallBtn svg,
+.primaryBtn svg {
+  flex: 0 0 auto;
 }
 
 .buttonGroup,
 .inlineActions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 14px;
 }
@@ -1050,11 +1138,12 @@ textarea:focus {
 .errorBox,
 .miniError {
   margin-top: 12px;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--danger-soft);
+  color: var(--danger);
   border-radius: 6px;
   padding: 12px;
   font-size: 14px;
+  border: 1px solid #ffd1cc;
 }
 
 .miniError {
@@ -1064,23 +1153,33 @@ textarea:focus {
 .lessonMemoryNote {
   margin-top: 12px;
   border-radius: 6px;
-  background: #ecfdf5;
-  color: #166534;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
   font-size: 13px;
   line-height: 1.55;
   padding: 10px 12px;
+  border: 1px solid #c8e8e0;
 }
 
 .hint {
   margin: 8px 0 18px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 14px;
 }
 
 .studentManager {
   margin-bottom: 18px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.studentManager .inlineActions,
+.studentManager .lessonMemoryNote,
+.studentManager .miniError {
+  grid-column: 1 / -1;
 }
 
 .grid,
@@ -1094,7 +1193,7 @@ textarea:focus {
 .item label {
   display: block;
   margin-bottom: 7px;
-  color: #475569;
+  color: #405166;
   font-size: 13px;
   font-weight: 700;
 }
@@ -1102,7 +1201,7 @@ textarea:focus {
 .textInput em {
   display: block;
   margin-top: 3px;
-  color: #94a3b8;
+  color: #8a98aa;
   font-style: normal;
   font-weight: 500;
 }
@@ -1121,14 +1220,17 @@ textarea:focus {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid #d8dee9;
+  min-height: 42px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 0 12px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .affixInput:focus-within {
-  border-color: #64748b;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(20, 92, 88, 0.12);
 }
 
 .affixInput input {
@@ -1140,10 +1242,11 @@ textarea:focus {
 
 .affixInput input:focus {
   border-color: transparent;
+  box-shadow: none;
 }
 
 .affixInput b {
-  color: #172033;
+  color: var(--ink);
   font-size: 14px;
 }
 
@@ -1154,18 +1257,20 @@ textarea:focus {
 }
 
 .segmented button {
-  border: 1px solid #d8dee9;
+  min-height: 42px;
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 10px 12px;
-  background: #ffffff;
-  color: #172033;
+  background: var(--surface);
+  color: var(--ink);
   font-weight: 700;
   cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .segmented button.selected {
-  border-color: #111827;
-  background: #111827;
+  border-color: var(--brand);
+  background: var(--brand);
   color: #ffffff;
 }
 
@@ -1173,9 +1278,10 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  border: 1px solid #d8dee9;
+  min-height: 42px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 7px;
 }
 
@@ -1183,19 +1289,19 @@ textarea:focus {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #cbd5e1;
+  color: #c3ccd8;
   cursor: pointer;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   padding: 7px 0;
 }
 
 .rating button.active {
-  color: #111827;
+  color: #b7791f;
 }
 
 .rating button:hover {
-  background: #f8fafc;
+  background: #fff7ed;
 }
 
 .item textarea {
@@ -1203,7 +1309,11 @@ textarea:focus {
 }
 
 .item.large textarea {
-  min-height: 190px;
+  min-height: 170px;
+}
+
+.fullCard .grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 @media (max-width: 900px) {
@@ -1211,9 +1321,20 @@ textarea:focus {
     padding: 14px;
   }
 
+  .hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .heroMeta {
+    justify-content: flex-start;
+  }
+
   .layout,
   .grid,
-  .metaGrid {
+  .metaGrid,
+  .studentManager,
+  .fullCard .grid {
     grid-template-columns: 1fr;
   }
 
@@ -1223,7 +1344,7 @@ textarea:focus {
   }
 
   .hero h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
 }
 `;
