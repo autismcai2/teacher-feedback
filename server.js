@@ -259,9 +259,56 @@ async function updateStudentLessonNumber(name, lessonNumber) {
 }
 
 function extractJson(text) {
-  const trimmed = text.trim();
-  const match = trimmed.match(/\{[\s\S]*\}/);
-  return JSON.parse(match ? match[0] : trimmed);
+  const trimmed = String(text || "").trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Continue below and extract the first complete JSON object from model text.
+  }
+
+  const start = trimmed.indexOf("{");
+
+  if (start === -1) {
+    throw new Error("AI 返回内容不是有效 JSON。");
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < trimmed.length; i += 1) {
+    const char = trimmed[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\" && inString) {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return JSON.parse(trimmed.slice(start, i + 1));
+      }
+    }
+  }
+
+  throw new Error("AI 返回的 JSON 不完整，请重新生成一次。");
 }
 
 function cleanLeadingPunctuation(value) {
