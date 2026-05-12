@@ -325,6 +325,7 @@ export default function App() {
 
   const hasResult = Boolean(result.parentFeedback);
   const selectedStudentLastLesson = result.studentName ? studentLessons[result.studentName] || 0 : 0;
+  const currentLessonNumber = toLessonNumber(meta.lessonNumber);
 
   const excelText = useMemo(() => {
     if (!hasResult) return "";
@@ -516,10 +517,13 @@ export default function App() {
   function downloadExcel() {
     if (!hasResult) return;
 
-    const html = buildTemplateExcel(result, meta);
+    const teacherName = meta.teacherName;
+    const lessonNumber = toLessonNumber(meta.lessonNumber);
+    const downloadMeta = { ...meta, lessonNumber: String(lessonNumber) };
+    const html = buildTemplateExcel(result, downloadMeta);
     const studentName = safeFilePart(result.studentName, "学生");
     const courseName = safeFilePart(result.courseName, "课程");
-    const lessonName = safeFilePart(`第${meta.lessonNumber || 1}次课`, "课次");
+    const lessonName = safeFilePart(`第${lessonNumber}次课`, "课次");
     const blob = new Blob(["\ufeff", html], {
       type: "application/vnd.ms-excel;charset=utf-8",
     });
@@ -532,10 +536,10 @@ export default function App() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    void rememberStudentLesson(result.studentName, meta.lessonNumber);
+    void rememberStudentLesson(teacherName, result.studentName, lessonNumber);
   }
 
-  async function rememberStudentLesson(studentName, lessonNumber) {
+  async function rememberStudentLesson(teacherName, studentName, lessonNumber) {
     const normalizedLessonNumber = toLessonNumber(lessonNumber);
 
     if (!studentName) return;
@@ -546,13 +550,14 @@ export default function App() {
     };
 
     setStudentLessons(optimisticLessons);
-    writeStoredStudentLessons(meta.teacherName, optimisticLessons);
+    writeStoredStudentLessons(teacherName, optimisticLessons);
+    updateMeta("lessonNumber", String(normalizedLessonNumber + 1));
 
     try {
       const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(studentName)}/lesson`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teacherName: meta.teacherName, lessonNumber: normalizedLessonNumber }),
+        body: JSON.stringify({ teacherName, lessonNumber: normalizedLessonNumber }),
       });
       const data = await readJsonResponse(response, "保存学生课次失败");
 
@@ -560,7 +565,7 @@ export default function App() {
         throw new Error(data.error || "保存学生课次失败");
       }
 
-      syncStudentLessons(data.studentLessons, "", meta.teacherName);
+      syncStudentLessons(data.studentLessons, "", teacherName);
     } catch (err) {
       console.warn("保存学生课次到后端失败，已保存在当前浏览器。", err);
     }
@@ -650,10 +655,8 @@ export default function App() {
             {result.studentName && (
               <div className="lessonMemoryNote">
                 {selectedStudentLastLesson > 0
-                  ? `已记录 ${result.studentName} 上次第 ${selectedStudentLastLesson} 次课；选择该学生时默认第 ${
-                      selectedStudentLastLesson + 1
-                    } 次课。下载 Excel 后会更新记录。`
-                  : "这个学生还没有课次记录，本次默认第 1 次课；下载 Excel 后会自动记住。"}
+                  ? `已记录 ${meta.teacherName} 的 ${result.studentName} 上次第 ${selectedStudentLastLesson} 次课；当前将下载第 ${currentLessonNumber} 次课。下载 Excel 后会更新记录。`
+                  : `${meta.teacherName} 的 ${result.studentName} 还没有课次记录；当前将下载第 ${currentLessonNumber} 次课。下载 Excel 后会自动记住。`}
               </div>
             )}
             {studentError && <div className="miniError">{studentError}</div>}
