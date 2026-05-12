@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
+const STUDENT_LESSON_STORAGE_KEY = "teacher-feedback.student-lessons.v1";
 const CLASS_TIME_OPTIONS = [
   "8:00-10:00",
   "10:10-12:10",
@@ -91,6 +92,70 @@ function safeFilePart(value, fallback) {
 function copyText(text) {
   if (!text) return;
   navigator.clipboard.writeText(text);
+}
+
+function toLessonNumber(value, fallback = 1) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return fallback;
+
+  const normalized = Math.floor(number);
+  return normalized >= 1 ? normalized : fallback;
+}
+
+function normalizeStudentLessonValue(value) {
+  if (value && typeof value === "object") {
+    return toLessonNumber(value.lastLessonNumber, 0);
+  }
+
+  return toLessonNumber(value, 0);
+}
+
+function normalizeStudentLessonMap(lessons) {
+  if (!lessons || typeof lessons !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(lessons)
+      .map(([name, value]) => [name, normalizeStudentLessonValue(value)])
+      .filter(([name, lessonNumber]) => name && lessonNumber > 0),
+  );
+}
+
+function mergeStudentLessonMaps(...lessonMaps) {
+  return lessonMaps.reduce((merged, lessonMap) => {
+    const normalized = normalizeStudentLessonMap(lessonMap);
+
+    for (const [name, lessonNumber] of Object.entries(normalized)) {
+      merged[name] = Math.max(merged[name] || 0, lessonNumber);
+    }
+
+    return merged;
+  }, {});
+}
+
+function readStoredStudentLessons() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    return normalizeStudentLessonMap(JSON.parse(window.localStorage.getItem(STUDENT_LESSON_STORAGE_KEY) || "{}"));
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredStudentLessons(lessons) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(STUDENT_LESSON_STORAGE_KEY, JSON.stringify(normalizeStudentLessonMap(lessons)));
+  } catch {
+    // 浏览器禁用本地存储时，后端同步仍然可以保存课次。
+  }
+}
+
+function nextLessonNumberForStudent(studentLessons, studentName) {
+  const lastLessonNumber = normalizeStudentLessonValue((studentLessons || {})[studentName]);
+  return String(lastLessonNumber > 0 ? lastLessonNumber + 1 : 1);
 }
 
 async function readJsonResponse(response, fallbackMessage) {
@@ -214,6 +279,7 @@ export default function App() {
   const [studentError, setStudentError] = useState("");
   const [copied, setCopied] = useState("");
   const [students, setStudents] = useState([]);
+  const [studentLessons, setStudentLessons] = useState(() => readStoredStudentLessons());
   const [newStudentName, setNewStudentName] = useState("");
   const [result, setResult] = useState(emptyResult);
   const [meta, setMeta] = useState({
@@ -229,6 +295,7 @@ export default function App() {
   });
 
   const hasResult = Boolean(result.parentFeedback);
+  const selectedStudentLastLesson = result.studentName ? studentLessons[result.studentName] || 0 : 0;
 
   const excelText = useMemo(() => {
     if (!hasResult) return "";
@@ -239,21 +306,47 @@ export default function App() {
   }, [hasResult, result]);
 
   useEffect(() => {
+    async function loadStudents() {
+      try {
+        const response = await fetch(STUDENTS_API_URL);
+        const data = await readJsonResponse(response, "读取学生名单失败");
+
+        if (!response.ok) {
+          throw new Error(data.error || "读取学生名单失败");
+        }
+
+        const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(), data.studentLessons);
+
+        setStudents(data.students || []);
+        setStudentLessons(nextLessons);
+        writeStoredStudentLessons(nextLessons);
+      } catch (err) {
+        setStudentError(err.message || "读取学生名单失败");
+      }
+    }
+
     loadStudents();
   }, []);
 
-  async function loadStudents() {
-    try {
-      const response = await fetch(STUDENTS_API_URL);
-      const data = await readJsonResponse(response, "读取学生名单失败");
+  function syncStudentLessons(serverLessons, deletedStudentName = "") {
+    const nextLessons = mergeStudentLessonMaps(readStoredStudentLessons(), serverLessons);
 
-      if (!response.ok) {
-        throw new Error(data.error || "读取学生名单失败");
-      }
+    if (deletedStudentName) {
+      delete nextLessons[deletedStudentName];
+    }
 
-      setStudents(data.students || []);
-    } catch (err) {
-      setStudentError(err.message || "读取学生名单失败");
+    setStudentLessons(nextLessons);
+    writeStoredStudentLessons(nextLessons);
+    return nextLessons;
+  }
+
+  function selectStudent(name, lessons = studentLessons) {
+    updateResult("studentName", name);
+
+    if (name) {
+      updateMeta("lessonNumber", nextLessonNumberForStudent(lessons, name));
+    } else {
+      updateMeta("lessonNumber", "1");
     }
   }
 
@@ -279,8 +372,9 @@ export default function App() {
       }
 
       setStudents(data.students || []);
+      const nextLessons = syncStudentLessons(data.studentLessons);
       setNewStudentName("");
-      updateResult("studentName", name);
+      selectStudent(name, nextLessons);
     } catch (err) {
       setStudentError(err.message || "保存学生姓名失败");
     }
@@ -294,6 +388,7 @@ export default function App() {
 
     try {
       setStudentError("");
+      const deletingStudentName = result.studentName;
       const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(result.studentName)}`, {
         method: "DELETE",
       });
@@ -304,7 +399,9 @@ export default function App() {
       }
 
       setStudents(data.students || []);
+      syncStudentLessons(data.studentLessons, deletingStudentName);
       updateResult("studentName", "");
+      updateMeta("lessonNumber", "1");
     } catch (err) {
       setStudentError(err.message || "删除学生姓名失败");
     }
@@ -341,11 +438,17 @@ export default function App() {
         throw new Error(data.error || "AI 生成失败");
       }
 
+      const nextStudentName = result.studentName || data.studentName || "";
+
       setResult((prev) => ({
         ...emptyResult,
         ...data,
         studentName: prev.studentName || data.studentName || "",
       }));
+
+      if (!result.studentName && nextStudentName) {
+        updateMeta("lessonNumber", nextLessonNumberForStudent(studentLessons, nextStudentName));
+      }
     } catch (err) {
       setError(err.message || "请求失败。请确认 server.js 已经运行。");
     } finally {
@@ -378,6 +481,38 @@ export default function App() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    void rememberStudentLesson(result.studentName, meta.lessonNumber);
+  }
+
+  async function rememberStudentLesson(studentName, lessonNumber) {
+    const normalizedLessonNumber = toLessonNumber(lessonNumber);
+
+    if (!studentName) return;
+
+    const optimisticLessons = {
+      ...studentLessons,
+      [studentName]: normalizedLessonNumber,
+    };
+
+    setStudentLessons(optimisticLessons);
+    writeStoredStudentLessons(optimisticLessons);
+
+    try {
+      const response = await fetch(`${STUDENTS_API_URL}/${encodeURIComponent(studentName)}/lesson`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonNumber: normalizedLessonNumber }),
+      });
+      const data = await readJsonResponse(response, "保存学生课次失败");
+
+      if (!response.ok) {
+        throw new Error(data.error || "保存学生课次失败");
+      }
+
+      syncStudentLessons(data.studentLessons);
+    } catch (err) {
+      console.warn("保存学生课次到后端失败，已保存在当前浏览器。", err);
+    }
   }
 
   return (
@@ -429,7 +564,7 @@ export default function App() {
           <div className="studentManager">
             <label className="textInput">
               <span>学员姓名</span>
-              <select value={result.studentName} onChange={(e) => updateResult("studentName", e.target.value)}>
+              <select value={result.studentName} onChange={(e) => selectStudent(e.target.value)}>
                 <option value="">选择学生</option>
                 {students.map((student) => (
                   <option key={student} value={student}>
@@ -451,6 +586,15 @@ export default function App() {
                 删除所选
               </button>
             </div>
+            {result.studentName && (
+              <div className="lessonMemoryNote">
+                {selectedStudentLastLesson > 0
+                  ? `已记录 ${result.studentName} 上次第 ${selectedStudentLastLesson} 次课；选择该学生时默认第 ${
+                      selectedStudentLastLesson + 1
+                    } 次课。下载 Excel 后会更新记录。`
+                  : "这个学生还没有课次记录，本次默认第 1 次课；下载 Excel 后会自动记住。"}
+              </div>
+            )}
             {studentError && <div className="miniError">{studentError}</div>}
           </div>
 
@@ -870,6 +1014,16 @@ textarea:focus {
 
 .miniError {
   padding: 9px 10px;
+}
+
+.lessonMemoryNote {
+  margin-top: 12px;
+  border-radius: 6px;
+  background: #ecfdf5;
+  color: #166534;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
 }
 
 .hint {

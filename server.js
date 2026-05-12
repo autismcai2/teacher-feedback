@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "data");
 const studentsFile = path.join(dataDir, "students.json");
+const studentLessonColumn = "last_lesson_number";
 const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL);
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const useSupabase = Boolean(supabaseUrl && supabaseKey);
@@ -66,6 +67,10 @@ function publicStorageError(action, error) {
     lower.includes("relation") ||
     lower.includes("schema cache")
   ) {
+    if (lower.includes(studentLessonColumn)) {
+      return `${action}失败：Supabase 的 public.students 表还没有 ${studentLessonColumn} 字段。请先运行 README 里的课次记忆升级 SQL。`;
+    }
+
     return `${action}失败：Supabase 里可能还没有创建 public.students 表。请先运行建表 SQL。`;
   }
 
@@ -94,6 +99,69 @@ async function ensureStudentStore() {
   }
 }
 
+function normalizeLessonNumber(value, fallback = 0) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return fallback;
+
+  const normalized = Math.floor(number);
+  return normalized >= 0 ? normalized : fallback;
+}
+
+function normalizeStudentRecord(student) {
+  if (typeof student === "string") {
+    const name = student.trim();
+    return name ? { name, lastLessonNumber: 0 } : null;
+  }
+
+  if (!student || typeof student !== "object") return null;
+
+  const name = String(student.name || "").trim();
+  if (!name) return null;
+
+  return {
+    name,
+    lastLessonNumber: normalizeLessonNumber(student.lastLessonNumber ?? student[studentLessonColumn]),
+  };
+}
+
+function uniqueStudentRecords(students) {
+  const recordMap = new Map();
+
+  for (const student of students) {
+    const record = normalizeStudentRecord(student);
+    if (!record) continue;
+
+    const existing = recordMap.get(record.name);
+    recordMap.set(record.name, {
+      name: record.name,
+      lastLessonNumber: Math.max(existing?.lastLessonNumber || 0, record.lastLessonNumber || 0),
+    });
+  }
+
+  return [...recordMap.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+}
+
+function buildStudentsPayload(records) {
+  const normalized = uniqueStudentRecords(records);
+  const studentLessons = Object.fromEntries(
+    normalized
+      .filter((student) => student.lastLessonNumber > 0)
+      .map((student) => [student.name, student.lastLessonNumber]),
+  );
+
+  return {
+    students: normalized.map((student) => student.name),
+    studentLessons,
+    storage: useSupabase ? "supabase" : "local",
+  };
+}
+
+function isMissingStudentLessonColumn(error) {
+  const lower = String(error?.message || "").toLowerCase();
+  return lower.includes(studentLessonColumn);
+}
+
 async function supabaseRequest(pathname, options = {}) {
   const response = await fetch(`${supabaseUrl}/rest/v1${pathname}`, {
     ...options,
@@ -115,30 +183,36 @@ async function supabaseRequest(pathname, options = {}) {
   return data;
 }
 
-async function readStudents() {
+async function readStudentRecords() {
   if (useSupabase) {
-    const data = await supabaseRequest("/students?select=name&order=name.asc");
-    return data.map((student) => student.name).filter(Boolean);
+    try {
+      const data = await supabaseRequest(`/students?select=name,${studentLessonColumn}&order=name.asc`);
+      return uniqueStudentRecords(data);
+    } catch (error) {
+      if (!isMissingStudentLessonColumn(error)) throw error;
+
+      const data = await supabaseRequest("/students?select=name&order=name.asc");
+      return uniqueStudentRecords(data);
+    }
   }
 
   await ensureStudentStore();
   const text = await fs.readFile(studentsFile, "utf8");
   const parsed = JSON.parse(text || "[]");
-  return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  return Array.isArray(parsed) ? uniqueStudentRecords(parsed) : [];
 }
 
-async function writeStudents(students) {
+async function writeStudentRecords(students) {
   await ensureStudentStore();
-  const unique = [...new Set(students.map((name) => String(name).trim()).filter(Boolean))];
-  unique.sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+  const unique = uniqueStudentRecords(students);
   await fs.writeFile(studentsFile, `${JSON.stringify(unique, null, 2)}\n`, "utf8");
   return unique;
 }
 
 async function addStudentName(name) {
   if (!useSupabase) {
-    const students = await readStudents();
-    return writeStudents([...students, name]);
+    const students = await readStudentRecords();
+    return writeStudentRecords([...students, { name, lastLessonNumber: 0 }]);
   }
 
   await supabaseRequest("/students", {
@@ -147,20 +221,41 @@ async function addStudentName(name) {
     body: JSON.stringify({ name }),
   });
 
-  return readStudents();
+  return readStudentRecords();
 }
 
 async function deleteStudentName(name) {
   if (!useSupabase) {
-    const students = await readStudents();
-    return writeStudents(students.filter((student) => student !== name));
+    const students = await readStudentRecords();
+    return writeStudentRecords(students.filter((student) => student.name !== name));
   }
 
   await supabaseRequest(`/students?name=eq.${encodeURIComponent(name)}`, {
     method: "DELETE",
   });
 
-  return readStudents();
+  return readStudentRecords();
+}
+
+async function updateStudentLessonNumber(name, lessonNumber) {
+  const lastLessonNumber = normalizeLessonNumber(lessonNumber);
+
+  if (!useSupabase) {
+    const students = await readStudentRecords();
+    const existing = students.find((student) => student.name === name);
+    const nextStudents = existing
+      ? students.map((student) => (student.name === name ? { ...student, lastLessonNumber } : student))
+      : [...students, { name, lastLessonNumber }];
+
+    return writeStudentRecords(nextStudents);
+  }
+
+  await supabaseRequest(`/students?name=eq.${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ [studentLessonColumn]: lastLessonNumber }),
+  });
+
+  return readStudentRecords();
 }
 
 function extractJson(text) {
@@ -182,7 +277,7 @@ function cleanFeedbackData(data) {
 
 app.get("/api/students", async (req, res) => {
   try {
-    res.json({ students: await readStudents(), storage: useSupabase ? "supabase" : "local" });
+    res.json(buildStudentsPayload(await readStudentRecords()));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: publicStorageError("读取学生名单", error) });
@@ -201,7 +296,7 @@ app.post("/api/students", async (req, res) => {
       return res.status(400).json({ error: "学生姓名不能超过 20 个字符。" });
     }
 
-    res.json({ students: await addStudentName(name), storage: useSupabase ? "supabase" : "local" });
+    res.json(buildStudentsPayload(await addStudentName(name)));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: publicStorageError("保存学生姓名", error) });
@@ -211,10 +306,30 @@ app.post("/api/students", async (req, res) => {
 app.delete("/api/students/:name", async (req, res) => {
   try {
     const name = String(req.params.name || "").trim();
-    res.json({ students: await deleteStudentName(name), storage: useSupabase ? "supabase" : "local" });
+    res.json(buildStudentsPayload(await deleteStudentName(name)));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: publicStorageError("删除学生姓名", error) });
+  }
+});
+
+app.patch("/api/students/:name/lesson", async (req, res) => {
+  try {
+    const name = String(req.params.name || "").trim();
+    const lessonNumber = normalizeLessonNumber(req.body?.lessonNumber);
+
+    if (!name) {
+      return res.status(400).json({ error: "请先选择学生。" });
+    }
+
+    if (lessonNumber < 1) {
+      return res.status(400).json({ error: "课次必须是大于 0 的数字。" });
+    }
+
+    res.json(buildStudentsPayload(await updateStudentLessonNumber(name, lessonNumber)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("保存学生课次", error) });
   }
 });
 
