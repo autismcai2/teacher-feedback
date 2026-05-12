@@ -1,122 +1,67 @@
 # AI 课堂反馈生成器
 
-这是一个给教培老师使用的网页工具。老师输入一段课堂记录，系统会用 AI 自动整理出课堂反馈，并生成一个可以继续编辑的 Excel 反馈表。
+这是一个给教培老师课后整理反馈用的网页工具。老师输入课堂记录后，系统会用 AI 自动生成课堂反馈内容，并下载成接近模板样式的 Excel 表格。
 
-正式访问地址：
+线上地址：
 
 ```text
 https://teacher-feedback.onrender.com/
 ```
 
-## 这个项目能做什么
+## 主要功能
 
-- 输入一段课堂记录，AI 自动整理：
-  - 学生姓名
-  - 课程名称
-  - 今日教学内容
-  - 本节课重点
-  - 本节课难点
-  - 学生吸收情况
-  - 课堂表现
-  - 作业布置
-  - 后续建议
-  - 可直接发给家长的反馈话术
-- 下载固定格式的 Excel 课堂反馈表。
-- Excel 文件名自动按这个格式生成：
+- 输入课堂记录，AI 自动整理课堂反馈。
+- 生成内容包括：课程名称、教学内容、重难点、吸收情况、课堂表现、作业、后续建议、家长反馈话术。
+- 下载 Excel 反馈表，文件名格式为：
 
 ```text
 学生姓名-课程名称-第x次课.xls
 ```
 
-- 可以管理学生名单：
-  - 添加学生
-  - 删除学生
-  - 在基础信息里下拉选择学生
-- 可以选择基础信息：
-  - 课次
-  - 日期
-  - 上课时间
-  - 任课老师
-  - 出席情况
-  - 作业完成情况
-  - 认真程度星级
-  - 互动性星级
-- 学生名单使用 Supabase 云数据库保存，Render 重新部署后不会丢失。
+- 支持两位老师：陈思桦、蔡沁沛。
+- 学生名单按老师分开管理。
+- 课次记忆按“老师 + 学生”分开记录。
+
+举例：
+
+- 陈思桦的小明上次是第 8 次课，下次选择陈思桦的小明，会默认第 9 次课。
+- 蔡沁沛的小明上次是第 3 次课，下次选择蔡沁沛的小明，会默认第 4 次课。
+- 两个“小明”互不影响。
 
 ## 技术组成
 
 - 前端：React + Vite
 - 后端：Node.js + Express
-- AI 接口：OpenAI 兼容接口
-- 学生名单数据库：Supabase
-- 部署平台：Render
+- AI：OpenAI 兼容接口
+- 数据库：Supabase
+- 部署：Render
+- 代码托管：GitHub
 
-## 本地运行
+## 老师日常使用流程
 
-如果只是使用正式网页，不需要本地运行。
+1. 打开线上网页。
+2. 输入课堂记录。
+3. 在“基础信息”里先选择任课老师。
+4. 再选择该老师名下的学生。
+5. 检查课次、日期、时间等信息。
+6. 点击生成反馈。
+7. 点击下载 Excel。
 
-如果要自己开发或测试，需要电脑安装 Node.js。
-
-1. 安装依赖：
-
-```powershell
-npm install
-```
-
-2. 新建 `.env` 文件。
-
-可以复制 `.env.example`，然后把里面的值换成自己的：
-
-```env
-OPENAI_API_KEY=你的AI接口key
-OPENAI_BASE_URL=https://api.ikuncode.cc/v1
-# OPENAI_MODEL=gpt-5.5
-
-SUPABASE_URL=https://你的项目ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=你的Supabase service_role key
-```
-
-3. 启动后端：
-
-```powershell
-npm run server
-```
-
-4. 另开一个终端，启动前端：
-
-```powershell
-npm run dev
-```
-
-5. 打开页面：
-
-```text
-http://127.0.0.1:5173
-```
+下载 Excel 后，系统会把当前课次记为这个老师和这个学生的上次课次，并把页面上的课次自动跳到下一次。
 
 ## Supabase 数据库设置
 
-Supabase 用来保存学生名单。
+Supabase 用来保存学生名单和上次课次。正式部署时必须配置 Supabase，否则 Render 重新部署后数据可能丢失。
 
-### 1. 创建 Supabase 项目
+### 新项目建表 SQL
 
-打开：
-
-```text
-https://supabase.com
-```
-
-登录后创建一个新项目。
-
-### 2. 创建 students 表
-
-进入 Supabase 项目后，打开：
+进入 Supabase 项目，打开：
 
 ```text
 SQL Editor
 ```
 
-新建一个 Query，运行下面这段 SQL：
+新建 Query，运行：
 
 ```sql
 create table if not exists public.students (
@@ -131,9 +76,9 @@ create unique index if not exists students_teacher_name_name_idx
 on public.students (teacher_name, name);
 ```
 
-运行成功后，会创建一张 `students` 表。
+### 旧项目升级 SQL
 
-如果你之前已经创建过旧版 `students` 表，请再运行下面这段升级 SQL。它会给旧学生统一归到默认老师“陈思桦”名下，并把唯一规则改成“同一个老师名下学生姓名不能重复”：
+如果你之前已经创建过旧版 `students` 表，运行下面这段。它会把旧学生先统一归到陈思桦名下，然后改成“同一个老师名下学生姓名不能重复”。
 
 ```sql
 alter table public.students
@@ -162,86 +107,40 @@ create unique index if not exists students_teacher_name_name_idx
 on public.students (teacher_name, name);
 ```
 
-### 3. 获取 Supabase 配置
+运行成功后，两个老师可以分别拥有同名学生。
 
-进入：
+## Render 环境变量
+
+Render 后台进入你的 Web Service，打开 Environment Variables，添加：
+
+```env
+OPENAI_API_KEY=你的AI接口key
+OPENAI_BASE_URL=https://api.ikuncode.cc/v1
+SUPABASE_URL=https://你的项目ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=你的Supabase service_role key
+```
+
+如果你用的是 Supabase 新版 secret key，也可以写：
+
+```env
+SUPABASE_SECRET_KEY=你的Supabase secret key
+```
+
+注意：
+
+- 不要使用 Supabase 的 anon public key。
+- 一般不需要设置 `OPENAI_MODEL`，代码默认使用 `gpt-5.5`。
+- `.env` 文件不要上传到 GitHub。
+
+## Render 部署配置
+
+Render 上必须创建：
 
 ```text
-Project Settings -> API
+Web Service
 ```
 
-找到：
-
-```text
-Project URL
-```
-
-它长这样：
-
-```text
-https://xxxx.supabase.co
-```
-
-再找到：
-
-```text
-service_role key
-```
-
-或者新版本 Supabase 里的：
-
-```text
-secret key
-```
-
-注意：不要使用 `anon public key`，学生名单接口需要后端权限。
-
-## Render 部署
-
-Render 用来把项目变成一个正式网页。别人只需要打开网址，不需要安装 Node，不需要打开 cmd。
-
-### 1. 上传 GitHub
-
-第一次上传：
-
-```powershell
-git init
-git add .
-git commit -m "initial commit"
-git branch -M main
-git remote add origin 你的GitHub仓库地址
-git push -u origin main
-```
-
-以后每次更新：
-
-```powershell
-git add .
-git commit -m "update app"
-git push
-```
-
-注意：`.env` 不要上传。项目里的 `.gitignore` 已经忽略了 `.env`。
-
-### 2. 创建 Render 服务
-
-打开：
-
-```text
-https://render.com
-```
-
-选择：
-
-```text
-New -> Web Service
-```
-
-一定要选 `Web Service`，不要选 `Static Site`。
-
-连接你的 GitHub 仓库。
-
-### 3. Render 配置
+不要创建 Static Site。
 
 Build Command：
 
@@ -255,9 +154,15 @@ Start Command：
 npm start
 ```
 
-### 4. Render 环境变量
+## 本地开发
 
-在 Render 的 Environment Variables 里添加：
+安装依赖：
+
+```powershell
+npm install
+```
+
+新建 `.env`：
 
 ```env
 OPENAI_API_KEY=你的AI接口key
@@ -266,295 +171,138 @@ SUPABASE_URL=https://你的项目ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=你的Supabase service_role key
 ```
 
-如果你使用的是 Supabase secret key，也可以写：
-
-```env
-SUPABASE_SECRET_KEY=你的Supabase secret key
-```
-
-一般不需要设置 `OPENAI_MODEL`。代码默认使用：
-
-```text
-gpt-5.5
-```
-
-如果你的接口不支持这个模型，再按你的接口后台支持的模型名修改。
-
-### 5. 部署完成后检查
-
-打开：
-
-```text
-你的域名/api/health
-```
-
-正常应该看到：
-
-```json
-{"ok":true,"storage":"supabase"}
-```
-
-再打开：
-
-```text
-你的域名/api/students?teacherName=陈思桦
-```
-
-正常应该看到：
-
-```json
-{"teacherName":"陈思桦","students":[],"studentLessons":{},"storage":"supabase"}
-```
-
-如果这里显示网页页面，而不是 JSON，说明你可能部署成了 Static Site，或者后端没有启动。
-
-## 后端 API 说明
-
-### 健康检查
-
-```http
-GET /api/health
-```
-
-返回示例：
-
-```json
-{
-  "ok": true,
-  "storage": "supabase"
-}
-```
-
-`storage` 如果是 `supabase`，说明正在使用云数据库。
-
-`storage` 如果是 `local`，说明没有配置 Supabase，正在使用本地 JSON 文件。
-
-### 读取学生名单
-
-```http
-GET /api/students?teacherName=陈思桦
-```
-
-返回示例：
-
-```json
-{
-  "teacherName": "陈思桦",
-  "students": ["小明", "小红"],
-  "studentLessons": {
-    "小明": 2
-  },
-  "storage": "supabase"
-}
-```
-
-### 添加学生
-
-```http
-POST /api/students
-Content-Type: application/json
-```
-
-请求内容：
-
-```json
-{
-  "teacherName": "陈思桦",
-  "name": "小明"
-}
-```
-
-返回示例：
-
-```json
-{
-  "teacherName": "陈思桦",
-  "students": ["小明"],
-  "studentLessons": {},
-  "storage": "supabase"
-}
-```
-
-### 删除学生
-
-```http
-DELETE /api/students/小明?teacherName=陈思桦
-```
-
-返回示例：
-
-```json
-{
-  "teacherName": "陈思桦",
-  "students": [],
-  "studentLessons": {},
-  "storage": "supabase"
-}
-```
-
-### 保存学生上次课次
-
-下载 Excel 后，前端会自动调用这个接口，把当前课次记录到“老师 + 学生”名下。下次选择同一位老师的同一位学生时，课次会默认变成“上次课次 + 1”。
-
-```http
-PATCH /api/students/小明/lesson
-Content-Type: application/json
-```
-
-请求内容：
-
-```json
-{
-  "teacherName": "陈思桦",
-  "lessonNumber": 2
-}
-```
-
-### 生成课堂反馈
-
-```http
-POST /api/generate-feedback
-Content-Type: application/json
-```
-
-请求内容：
-
-```json
-{
-  "rawText": "小明今天学习一次函数，课堂能跟上，图像题还需要练习。作业完成讲义第3到8题。",
-  "style": "温和鼓励"
-}
-```
-
-返回内容会包含：
-
-```json
-{
-  "studentName": "小明",
-  "courseName": "初二数学",
-  "todayContent": "...",
-  "keyPoints": "...",
-  "difficultPoints": "...",
-  "absorption": "...",
-  "classroomPerformance": "...",
-  "homework": "...",
-  "nextSuggestion": "...",
-  "parentFeedback": "..."
-}
-```
-
-## 常见问题
-
-### 1. 页面提示“读取学生名单失败”
-
-先打开：
-
-```text
-你的域名/api/students
-```
-
-看具体错误。
-
-常见原因：
-
-- Supabase 没有创建 `public.students` 表。
-- `SUPABASE_URL` 填错。
-- `SUPABASE_URL` 不要写 `/rest/v1` 结尾，只写：
-
-```text
-https://xxxx.supabase.co
-```
-
-- Supabase key 用错了。不要用 anon key，要用 service_role key 或 secret key。
-
-### 2. 出现 `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`
-
-说明前端请求 API 时拿到了网页 HTML，不是 JSON。
-
-常见原因：
-
-- Render 部署成了 Static Site。
-- 正确应该部署成 Web Service。
-- Start Command 没写成 `npm start`。
-
-检查：
-
-```text
-你的域名/api/health
-```
-
-如果看到网页，而不是 JSON，就是后端没跑起来。
-
-### 3. 出现 `No available channel for model`
-
-说明 AI 接口不支持当前模型。
-
-解决方法：
-
-- Render 环境变量里删除 `OPENAI_MODEL`
-- 或改成你的接口支持的模型，例如：
-
-```env
-OPENAI_MODEL=gpt-5.5
-```
-
-### 4. 重新部署后学生名单没了
-
-说明当前没有使用 Supabase，而是在用本地存储。
-
-打开：
-
-```text
-你的域名/api/health
-```
-
-如果看到：
-
-```json
-{"ok":true,"storage":"local"}
-```
-
-就说明 Supabase 环境变量没有配好。
-
-应该看到：
-
-```json
-{"ok":true,"storage":"supabase"}
-```
-
-### 5. Excel 打开时提示格式不匹配
-
-这是正常的。
-
-当前项目生成的是 HTML 格式的 `.xls`，Excel 会提示格式和扩展名不完全一致。点“是”即可打开，内容可以编辑。
-
-## 每次修改后怎么更新线上网页
-
-本地改完代码后：
+启动后端：
 
 ```powershell
-npm run lint
-npm run build
+npm run server
+```
+
+另开一个终端启动前端：
+
+```powershell
+npm run dev
+```
+
+打开：
+
+```text
+http://127.0.0.1:5173
+```
+
+## 更新 GitHub 和 Render
+
+每次本地改完后，先检查：
+
+```powershell
+npm.cmd run lint
+npm.cmd run build
+```
+
+然后提交到 GitHub：
+
+```powershell
 git add .
-git commit -m "说明这次改了什么"
+git commit -m "update app"
 git push
 ```
 
-然后 Render 会自动重新部署。没有自动部署时，可以去 Render 后台点：
+Render 如果绑定了 GitHub，通常会自动部署。没有自动部署时，去 Render 后台点：
 
 ```text
 Manual Deploy -> Deploy latest commit
 ```
 
+## 部署后检查
+
+检查后端是否正常：
+
+```text
+你的域名/api/health
+```
+
+正常应该看到：
+
+```json
+{"ok":true,"storage":"supabase"}
+```
+
+检查学生接口：
+
+```text
+你的域名/api/students?teacherName=陈思桦
+```
+
+正常应该看到类似：
+
+```json
+{"teacherName":"陈思桦","students":[],"studentLessons":{},"storage":"supabase"}
+```
+
+如果 `storage` 是 `local`，说明 Supabase 环境变量没有配好。
+
+## 常见问题
+
+### 页面提示读取学生名单失败
+
+先打开：
+
+```text
+你的域名/api/students?teacherName=陈思桦
+```
+
+常见原因：
+
+- Supabase 没有创建 `public.students` 表。
+- 没有运行旧项目升级 SQL。
+- `SUPABASE_URL` 填错。
+- `SUPABASE_URL` 不要带 `/rest/v1`，只写 `https://xxxx.supabase.co`。
+- Supabase key 用错了，必须使用 service_role key 或 secret key。
+
+### 页面提示接口返回网页而不是 JSON
+
+通常说明 Render 部署类型错了。
+
+正确部署类型是：
+
+```text
+Web Service
+```
+
+不是：
+
+```text
+Static Site
+```
+
+也可以打开：
+
+```text
+你的域名/api/health
+```
+
+如果看到网页而不是 JSON，就是后端没有跑起来。
+
+### AI 生成失败或模型不可用
+
+如果提示模型不可用，检查 Render 环境变量里的 `OPENAI_MODEL`。
+
+一般建议删除 `OPENAI_MODEL`，让代码使用默认模型：
+
+```text
+gpt-5.5
+```
+
+### Excel 打开提示格式不匹配
+
+这是正常的。项目生成的是 HTML 格式的 `.xls` 文件，Excel 会提示格式和扩展名不完全一致，点“是”即可打开和编辑。
+
 ## 安全提醒
 
-不要把这些内容上传到 GitHub：
+不要上传这些内容到 GitHub：
 
 - `.env`
 - `OPENAI_API_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_SECRET_KEY`
-
-这些只能放在 Render 的环境变量里。
 
 如果不小心上传了 key，建议立刻去对应平台重置 key。
