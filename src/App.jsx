@@ -200,8 +200,8 @@ async function readJsonResponse(response, fallbackMessage) {
 
 function buildTemplateExcel(result, meta) {
   const content = escapeHtml(result.todayContent);
-  const keyPoints = escapeHtml(result.keyPoints);
-  const difficultPoints = escapeHtml(result.difficultPoints);
+  const keyPoints = escapeHtml(String(result.keyPoints || "").trim());
+  const difficultPoints = escapeHtml(String(result.difficultPoints || "").trim());
   const absorption = escapeHtml(result.absorption);
   const homework = escapeHtml(result.homework);
   const studentName = escapeHtml(result.studentName || "同学");
@@ -217,7 +217,7 @@ function buildTemplateExcel(result, meta) {
   const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
   const keyDifficultHeight = estimateRowHeight(
     `${result.keyPoints}\n\n${result.difficultPoints}`,
-    520,
+    680,
     40,
     32,
   );
