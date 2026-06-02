@@ -213,12 +213,12 @@ function buildTemplateExcel(result, meta) {
   const homeworkStatus = escapeHtml(meta.homeworkStatus || "已完成");
   const seriousness = escapeHtml("★".repeat(Number(meta.seriousness) || 4));
   const interaction = escapeHtml("★".repeat(Number(meta.interaction) || 3));
-  const contentHeight = estimateRowHeight(result.todayContent, 220, 46, 32);
+  const contentHeight = estimateRowHeight(result.todayContent, 220, 40, 32);
   const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
   const keyDifficultHeight = estimateRowHeight(
     `${result.keyPoints}\n\n${result.difficultPoints}`,
     520,
-    46,
+    40,
     32,
   );
   const homeworkHeight = estimateRowHeight(result.homework, 260, 28, 32);
@@ -243,8 +243,9 @@ function buildTemplateExcel(result, meta) {
   </xml>
   <![endif]-->
   <style>
+    body, table, td { font-family: "宋体", SimSun, serif; mso-font-charset: 134; mso-fareast-font-family: "宋体"; }
     table { border-collapse: collapse; table-layout: fixed; }
-    td { border: 1px solid #000; font-family: "SimSun", "Microsoft YaHei", Arial, sans-serif; font-size: 16pt; vertical-align: middle; padding: 4px; }
+    td { border: 1px solid #000; font-size: 16pt; vertical-align: middle; padding: 4px; }
     .top { height: 62px; text-align: center; font-size: 22pt; font-weight: 700; color: #ff0000; white-space: nowrap; }
     .label { height: 46px; text-align: center; font-size: 12pt; font-weight: 700; white-space: nowrap; }
     .smallCenter { text-align: center; font-size: 14pt; }
@@ -257,20 +258,19 @@ function buildTemplateExcel(result, meta) {
   </style>
 </head>
 <body>
-  <table width="1660">
+  <table width="1750">
     <col width="125" /><col width="125" /><col width="165" /><col width="240" />
-    <col width="125" /><col width="175" /><col width="150" /><col width="205" />
+    <col width="125" /><col width="150" /><col width="205" />
     <col width="205" /><col width="205" /><col width="205" />
     <tr>
       <td class="top" colspan="3">${lessonTitle}</td>
-      <td class="top" colspan="4">【上课时间】${classDate}&nbsp;&nbsp;${classTime}</td>
+      <td class="top" colspan="3">【上课时间】${classDate}&nbsp;&nbsp;${classTime}</td>
       <td class="top" colspan="4">【任课老师】${teacherName}</td>
     </tr>
     <tr>
       <td class="label">学员姓名</td>
       <td class="label">出席情况</td>
       <td class="label" colspan="3">课堂表现点评</td>
-      <td class="label">/</td>
       <td class="label">作业完成情况</td>
       <td class="green" colspan="4">三、学生吸收情况</td>
     </tr>
@@ -278,22 +278,21 @@ function buildTemplateExcel(result, meta) {
       <td class="smallCenter">${studentName}</td>
       <td class="smallCenter">${attendance}</td>
       <td class="smallCenter" colspan="3">认真程度：${seriousness}&nbsp;&nbsp;&nbsp;&nbsp;互动性：${interaction}</td>
-      <td></td>
       <td class="smallCenter">${homeworkStatus}</td>
       <td class="text" colspan="4" rowspan="3" style="height:${absorptionHeight}px">${absorption}</td>
     </tr>
     <tr>
-      <td class="orange" colspan="7">一、本节课教学内容</td>
+      <td class="orange" colspan="6">一、本节课教学内容</td>
     </tr>
     <tr height="${contentHeight}">
-      <td class="text" colspan="7">${content}</td>
+      <td class="text" colspan="6">${content}</td>
     </tr>
     <tr>
-      <td class="blue" colspan="7">二、本节课重难点</td>
+      <td class="blue" colspan="6">二、本节课重难点</td>
       <td class="cyan" colspan="4">四、作业布置</td>
     </tr>
     <tr height="${bottomHeight}">
-      <td class="text" colspan="7">一、知识重点<br />${keyPoints}<br /><br />二、核心难点<br />${difficultPoints}</td>
+      <td class="text" colspan="6">一、知识重点<br />${keyPoints}<br /><br />二、核心难点<br />${difficultPoints}</td>
       <td class="homeworkBox" colspan="4">${homework}</td>
     </tr>
   </table>
