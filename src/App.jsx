@@ -216,8 +216,8 @@ function buildTemplateExcel(result, meta) {
   const contentHeight = estimateRowHeight(result.todayContent, 220, 40, 32);
   const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
   const keyDifficultHeight = estimateRowHeight(
-    `${result.keyPoints}\n\n${result.difficultPoints}`,
-    680,
+    `${result.keyPoints}\n${result.difficultPoints}`,
+    760,
     40,
     32,
   );
@@ -292,7 +292,7 @@ function buildTemplateExcel(result, meta) {
       <td class="cyan" colspan="4">四、作业布置</td>
     </tr>
     <tr height="${bottomHeight}">
-      <td class="text" colspan="6">一、知识重点<br />${keyPoints}<br /><br />二、核心难点<br />${difficultPoints}</td>
+      <td class="text" colspan="6">一、知识重点<br />${keyPoints}<br />二、核心难点<br />${difficultPoints}</td>
       <td class="homeworkBox" colspan="4">${homework}</td>
     </tr>
   </table>
