@@ -240,6 +240,32 @@ Manual Deploy -> Deploy latest commit
 
 如果 `storage` 是 `local`，说明 Supabase 环境变量没有配好。
 
+## UptimeRobot 免费定时访问
+
+如果使用 Render 和 Supabase 免费套餐，建议用 UptimeRobot 定时访问 keepalive 接口，减少项目因为长时间低活跃而暂停的概率。
+
+在 UptimeRobot 里创建 HTTP monitor：
+
+```text
+Monitor Type: HTTP(s)
+URL: 你的域名/api/keepalive
+Monitoring Interval: 5 minutes
+```
+
+线上项目可以填写：
+
+```text
+https://teacher-feedback.onrender.com/api/keepalive
+```
+
+正常应该看到：
+
+```json
+{"ok":true,"storage":"supabase"}
+```
+
+这个接口只会轻量读取一次 Supabase 的 `students` 表，不返回学生姓名或学生名单。不要用 `/api/health` 做 Supabase 保活，因为 `/api/health` 只检查后端状态，不会查询数据库。
+
 ## 常见问题
 
 ### 页面提示读取学生名单失败
