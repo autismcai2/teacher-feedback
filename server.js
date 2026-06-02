@@ -50,6 +50,22 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.get("/api/keepalive", async (req, res) => {
+  try {
+    if (useSupabase) {
+      await supabaseRequest("/students?select=name&limit=1");
+    }
+
+    res.json({
+      ok: true,
+      storage: useSupabase ? "supabase" : "local",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("保持数据库在线", error) });
+  }
+});
+
 function normalizeSupabaseUrl(value) {
   if (!value) return "";
 
@@ -58,6 +74,20 @@ function normalizeSupabaseUrl(value) {
     .replace(/^['"]|['"]$/g, "")
     .replace(/\/+$/, "")
     .replace(/\/rest\/v1$/i, "");
+}
+
+function validateSupabaseUrl(value) {
+  let parsed;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("SUPABASE_URL 格式不正确，请填写项目根地址，格式类似 https://xxxx.supabase.co。");
+  }
+
+  if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".supabase.co") || parsed.pathname !== "/") {
+    throw new Error("SUPABASE_URL 格式不正确，请填写项目根地址，格式类似 https://xxxx.supabase.co。");
+  }
 }
 
 function publicStorageError(action, error) {
@@ -183,6 +213,8 @@ function isMissingColumn(error, columnName) {
 }
 
 async function supabaseRequest(pathname, options = {}) {
+  validateSupabaseUrl(supabaseUrl);
+
   const response = await fetch(`${supabaseUrl}/rest/v1${pathname}`, {
     ...options,
     headers: {
