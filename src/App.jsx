@@ -215,14 +215,14 @@ function buildTemplateExcel(result, meta) {
   const interaction = escapeHtml("★".repeat(Number(meta.interaction) || 3));
   const contentHeight = estimateRowHeight(result.todayContent, 220, 40, 32);
   const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
-  const keyDifficultHeight = estimateRowHeight(
-    `${result.keyPoints}\n${result.difficultPoints}`,
-    760,
-    40,
-    32,
-  );
+  const subTitleHeight = 46;
+  const keyPointsHeight = estimateRowHeight(result.keyPoints, 320, 40, 32);
+  const difficultPointsHeight = estimateRowHeight(result.difficultPoints, 320, 40, 32);
   const homeworkHeight = estimateRowHeight(result.homework, 260, 28, 32);
-  const bottomHeight = Math.max(keyDifficultHeight, homeworkHeight);
+  const keyDifficultHeight = keyPointsHeight + difficultPointsHeight + subTitleHeight * 2;
+  const extraBottomHeight = Math.max(0, homeworkHeight - keyDifficultHeight);
+  const finalKeyPointsHeight = keyPointsHeight + Math.ceil(extraBottomHeight / 2);
+  const finalDifficultPointsHeight = difficultPointsHeight + Math.floor(extraBottomHeight / 2);
 
   return `
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -254,6 +254,7 @@ function buildTemplateExcel(result, meta) {
     .green { background: #a9d18e; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
     .cyan { background: #c9f1ef; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
     .text { vertical-align: top; line-height: 1.45; font-size: 15pt; padding: 10px 8px; white-space: normal; mso-wrap-style: square; mso-data-placement: same-cell; }
+    .subTitle { vertical-align: middle; text-align: left; font-weight: 700; background: #f7f9fc; }
     .homeworkBox { text-align: center; font-size: 16pt; border: 2px solid #107c41; }
   </style>
 </head>
@@ -291,9 +292,18 @@ function buildTemplateExcel(result, meta) {
       <td class="blue" colspan="6">二、本节课重难点</td>
       <td class="cyan" colspan="4">四、作业布置</td>
     </tr>
-    <tr height="${bottomHeight}">
-      <td class="text" colspan="6">一、知识重点<br />${keyPoints}<br />二、核心难点<br />${difficultPoints}</td>
-      <td class="homeworkBox" colspan="4">${homework}</td>
+    <tr height="${subTitleHeight}">
+      <td class="text subTitle" colspan="6">一、知识重点</td>
+      <td class="homeworkBox" colspan="4" rowspan="4">${homework}</td>
+    </tr>
+    <tr height="${finalKeyPointsHeight}">
+      <td class="text" colspan="6">${keyPoints}</td>
+    </tr>
+    <tr height="${subTitleHeight}">
+      <td class="text subTitle" colspan="6">二、核心难点</td>
+    </tr>
+    <tr height="${finalDifficultPointsHeight}">
+      <td class="text" colspan="6">${difficultPoints}</td>
     </tr>
   </table>
 </body>

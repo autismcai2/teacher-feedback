@@ -15,5 +15,8 @@ test("generated Excel template does not include the placeholder slash column", (
 
 test("generated Excel key-point section spans the remaining left-side columns", () => {
   assert.match(appSource, /<td class="blue" colspan="6">二、本节课重难点<\/td>/);
-  assert.match(appSource, /<td class="text" colspan="6">一、知识重点/);
+  assert.match(appSource, /<td class="text subTitle" colspan="6">一、知识重点<\/td>/);
+  assert.match(appSource, /<td class="text subTitle" colspan="6">二、核心难点<\/td>/);
+  assert.match(appSource, /<td class="homeworkBox" colspan="4" rowspan="4">\$\{homework\}<\/td>/);
+  assert.doesNotMatch(appSource, /一、知识重点<br \/>\$\{keyPoints\}<br \/>二、核心难点/);
 });
