@@ -216,8 +216,8 @@ function buildTemplateExcel(result, meta) {
   const contentHeight = estimateRowHeight(result.todayContent, 220, 40, 32);
   const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
   const subTitleHeight = 46;
-  const keyPointsHeight = estimateRowHeight(result.keyPoints, 320, 40, 32);
-  const difficultPointsHeight = estimateRowHeight(result.difficultPoints, 320, 40, 32);
+  const keyPointsHeight = estimateRowHeight(result.keyPoints, 280, 40, 32);
+  const difficultPointsHeight = estimateRowHeight(result.difficultPoints, 280, 40, 32);
   const homeworkHeight = estimateRowHeight(result.homework, 260, 28, 32);
   const keyDifficultHeight = keyPointsHeight + difficultPointsHeight + subTitleHeight * 2;
   const extraBottomHeight = Math.max(0, homeworkHeight - keyDifficultHeight);
@@ -259,9 +259,9 @@ function buildTemplateExcel(result, meta) {
   </style>
 </head>
 <body>
-  <table width="1750">
-    <col width="125" /><col width="125" /><col width="165" /><col width="240" />
-    <col width="125" /><col width="150" /><col width="205" />
+  <table width="1910">
+    <col width="125" /><col width="125" /><col width="165" /><col width="300" />
+    <col width="165" /><col width="180" /><col width="205" />
     <col width="205" /><col width="205" /><col width="205" />
     <tr>
       <td class="top" colspan="3">${lessonTitle}</td>
