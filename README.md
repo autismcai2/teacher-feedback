@@ -115,7 +115,7 @@ Render 后台进入你的 Web Service，打开 Environment Variables，添加：
 
 ```env
 OPENAI_API_KEY=你的AI接口key
-OPENAI_BASE_URL=https://api.ikuncode.cc/v1
+OPENAI_BASE_URL=https=你的AI接口URL
 SUPABASE_URL=https://你的项目ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=你的Supabase service_role key
 ```
