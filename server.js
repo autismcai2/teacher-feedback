@@ -30,6 +30,10 @@ const client = new OpenAI({
   timeout: 120000,
 });
 
+const aiProvider = normalizeAiProvider(process.env.AI_PROVIDER);
+const anthropicBaseUrl = normalizeApiBaseUrl(process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com");
+const anthropicVersion = process.env.ANTHROPIC_VERSION || "2023-06-01";
+
 const fallbackResult = {
   studentName: "同学",
   courseName: "",
@@ -418,6 +422,86 @@ function cleanFeedbackData(data) {
   );
 }
 
+function normalizeAiProvider(value) {
+  const provider = String(value || "").trim().toLowerCase();
+
+  if (provider === "anthropic" || provider === "claude") return "anthropic";
+  if (provider === "openai") return "openai";
+  if (process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) return "anthropic";
+  return "openai";
+}
+
+function normalizeApiBaseUrl(value) {
+  return String(value || "").trim().replace(/^['"]|['"]$/g, "").replace(/\/+$/, "").replace(/\/v1$/i, "");
+}
+
+function getMissingAiConfig() {
+  if (aiProvider === "anthropic") {
+    return process.env.ANTHROPIC_API_KEY ? "" : "缺少 ANTHROPIC_API_KEY，请先配置 Claude API Key。";
+  }
+
+  return process.env.OPENAI_API_KEY ? "" : "缺少 OPENAI_API_KEY，请先配置 OpenAI/New API Key。";
+}
+
+function extractAnthropicText(data) {
+  if (!Array.isArray(data?.content)) return "";
+
+  return data.content
+    .filter((block) => block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+async function generateAiText(prompt) {
+  if (aiProvider === "anthropic") {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+    try {
+      const response = await fetch(`${anthropicBaseUrl}/v1/messages`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": anthropicVersion,
+        },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+          max_tokens: Number(process.env.ANTHROPIC_MAX_TOKENS || 4096),
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      const text = await response.text();
+      let data;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error(
+          `Claude API 返回的不是 JSON。请检查 ANTHROPIC_BASE_URL 是否为接口地址，不要填控制台/网页地址。返回片段：${text.slice(0, 160)}`,
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data?.message || `Claude API 请求失败：${response.status}`);
+      }
+
+      return extractAnthropicText(data);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const response = await client.responses.create({
+    model: process.env.OPENAI_MODEL || "gpt-5.5",
+    input: prompt,
+  });
+
+  return response.output_text || "";
+}
+
 app.get("/api/students", async (req, res) => {
   try {
     const teacherName = normalizeTeacherName(req.query?.teacherName);
@@ -488,8 +572,9 @@ app.post("/api/generate-feedback", async (req, res) => {
       return res.status(400).json({ error: "请输入课堂记录。" });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "缺少 OPENAI_API_KEY，请先配置环境变量。" });
+    const missingAiConfig = getMissingAiConfig();
+    if (missingAiConfig) {
+      return res.status(500).json({ error: missingAiConfig });
     }
 
     const prompt = `
@@ -522,12 +607,7 @@ app.post("/api/generate-feedback", async (req, res) => {
 ${rawText}
 `;
 
-    const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5.5",
-      input: prompt,
-    });
-
-    const data = cleanFeedbackData(extractJson(response.output_text || ""));
+    const data = cleanFeedbackData(extractJson(await generateAiText(prompt)));
     res.json({ ...fallbackResult, ...data });
   } catch (error) {
     console.error(error);
@@ -535,12 +615,13 @@ ${rawText}
     const message = error?.message || "";
 
     if (
+      error?.name === "AbortError" ||
       error?.name === "APIConnectionTimeoutError" ||
       error?.constructor?.name === "APIConnectionTimeoutError" ||
       message.toLowerCase().includes("timed out")
     ) {
       return res.status(504).json({
-        error: "连接 AI 接口超时。请检查 OPENAI_BASE_URL、网络，或确认转发服务可访问。",
+        error: "连接 AI 接口超时。请检查 OPENAI_BASE_URL/ANTHROPIC_BASE_URL、网络，或确认转发服务可访问。",
       });
     }
 

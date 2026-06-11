@@ -32,7 +32,7 @@ https://teacher-feedback.onrender.com/
 
 - 前端：React + Vite
 - 后端：Node.js + Express
-- AI：OpenAI 兼容接口
+- AI：OpenAI 兼容接口 / Claude Anthropic Messages API
 - 数据库：Supabase
 - 部署：Render
 - 代码托管：GitHub
@@ -114,11 +114,23 @@ on public.students (teacher_name, name);
 Render 后台进入你的 Web Service，打开 Environment Variables，添加：
 
 ```env
+AI_PROVIDER=openai
 OPENAI_API_KEY=你的AI接口key
 OPENAI_BASE_URL=https=你的AI接口URL
 SUPABASE_URL=https://你的项目ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=你的Supabase service_role key
 ```
+
+如果改用 Claude 官方 API 或 Claude 中转站，AI 相关变量改成：
+
+```env
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=你的Claude接口key
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_MODEL=claude-sonnet-4-6
+```
+
+Claude 中转站的 `ANTHROPIC_BASE_URL` 填中转站接口根地址即可，代码会自动拼接 `/v1/messages`。不要填写控制台、登录页或网页首页地址。
 
 如果你用的是 Supabase 新版 secret key，也可以写：
 
@@ -129,7 +141,8 @@ SUPABASE_SECRET_KEY=你的Supabase secret key
 注意：
 
 - 不要使用 Supabase 的 anon public key。
-- 一般不需要设置 `OPENAI_MODEL`，代码默认使用 `gpt-5.5`。
+- 使用 OpenAI/New API 时一般不需要设置 `OPENAI_MODEL`，代码默认使用 `gpt-5.5`。
+- 使用 Claude 时可以通过 `ANTHROPIC_MODEL` 切换模型。
 - `.env` 文件不要上传到 GitHub。
 
 ## Render 部署配置
@@ -165,6 +178,7 @@ npm install
 新建 `.env`：
 
 ```env
+AI_PROVIDER=openai
 OPENAI_API_KEY=你的AI接口key
 OPENAI_BASE_URL=https://api.ikuncode.cc/v1
 SUPABASE_URL=https://你的项目ref.supabase.co
@@ -310,13 +324,24 @@ Static Site
 
 ### AI 生成失败或模型不可用
 
-如果提示模型不可用，检查 Render 环境变量里的 `OPENAI_MODEL`。
+如果使用 OpenAI/New API，提示模型不可用时检查 Render 环境变量里的 `OPENAI_MODEL`。
 
 一般建议删除 `OPENAI_MODEL`，让代码使用默认模型：
 
 ```text
 gpt-5.5
 ```
+
+如果使用 Claude 官方 API 或 Claude 中转站，检查：
+
+```env
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=你的Claude接口key
+ANTHROPIC_BASE_URL=你的Claude接口根地址
+ANTHROPIC_MODEL=中转站支持的模型名
+```
+
+如果报“返回的不是 JSON”并看到 `<!doctype html>`，通常是 `ANTHROPIC_BASE_URL` 或 `OPENAI_BASE_URL` 填成了网页首页、控制台地址或登录页。
 
 ### Excel 打开提示格式不匹配
 
@@ -328,6 +353,7 @@ gpt-5.5
 
 - `.env`
 - `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_SECRET_KEY`
 
