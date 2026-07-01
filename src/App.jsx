@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Plus, Sparkles, Trash2 } from "lucide-react";
+import { createTemplateExcelBlob } from "./excel-template";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
@@ -63,25 +64,6 @@ function formatDateLabel(value) {
 
   const [, month, day] = value.split("-");
   return `${Number(month)}月${Number(day)}日`;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/\n/g, "<br />");
-}
-
-function estimateRowHeight(text, minHeight, charsPerLine, lineHeight) {
-  const plain = String(text || "");
-  const explicitLines = plain.split("\n");
-  const lineCount = explicitLines.reduce((total, line) => {
-    return total + Math.max(1, Math.ceil(line.length / charsPerLine));
-  }, 0);
-
-  return Math.max(minHeight, lineCount * lineHeight + 42);
 }
 
 function safeFilePart(value, fallback) {
@@ -196,118 +178,6 @@ async function readJsonResponse(response, fallbackMessage) {
   } catch {
     throw new Error(`${fallbackMessage}：接口返回了网页而不是 JSON，请确认当前部署包含后端 API。`);
   }
-}
-
-function buildTemplateExcel(result, meta) {
-  const content = escapeHtml(result.todayContent);
-  const keyPoints = escapeHtml(String(result.keyPoints || "").trim());
-  const difficultPoints = escapeHtml(String(result.difficultPoints || "").trim());
-  const absorption = escapeHtml(result.absorption);
-  const homework = escapeHtml(result.homework);
-  const studentName = escapeHtml(result.studentName || "同学");
-  const teacherName = escapeHtml(meta.teacherName || DEFAULT_TEACHER_NAME);
-  const lessonTitle = escapeHtml(`第${meta.lessonNumber || 1}次课`);
-  const classDate = escapeHtml(formatDateLabel(meta.classDate));
-  const classTime = escapeHtml(meta.classTime || "10:10-12:10");
-  const attendance = escapeHtml(meta.attendance || "√");
-  const homeworkStatus = escapeHtml(meta.homeworkStatus || "已完成");
-  const seriousness = escapeHtml("★".repeat(Number(meta.seriousness) || 4));
-  const interaction = escapeHtml("★".repeat(Number(meta.interaction) || 3));
-  const contentHeight = estimateRowHeight(result.todayContent, 220, 40, 32);
-  const absorptionHeight = estimateRowHeight(result.absorption, 220, 30, 32);
-  const subTitleHeight = 46;
-  const keyPointsHeight = estimateRowHeight(result.keyPoints, 280, 40, 32);
-  const difficultPointsHeight = estimateRowHeight(result.difficultPoints, 280, 40, 32);
-  const homeworkHeight = estimateRowHeight(result.homework, 260, 28, 32);
-  const keyDifficultHeight = keyPointsHeight + difficultPointsHeight + subTitleHeight * 2;
-  const extraBottomHeight = Math.max(0, homeworkHeight - keyDifficultHeight);
-  const finalKeyPointsHeight = keyPointsHeight + Math.ceil(extraBottomHeight / 2);
-  const finalDifficultPointsHeight = difficultPointsHeight + Math.floor(extraBottomHeight / 2);
-
-  return `
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-  xmlns:x="urn:schemas-microsoft-com:office:excel"
-  xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-  <meta charset="UTF-8" />
-  <!--[if gte mso 9]>
-  <xml>
-    <x:ExcelWorkbook>
-      <x:ExcelWorksheets>
-        <x:ExcelWorksheet>
-          <x:Name>课堂反馈</x:Name>
-          <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-        </x:ExcelWorksheet>
-      </x:ExcelWorksheets>
-    </x:ExcelWorkbook>
-  </xml>
-  <![endif]-->
-  <style>
-    body, table, td { font-family: "宋体", SimSun, serif; mso-font-charset: 134; mso-fareast-font-family: "宋体"; }
-    table { border-collapse: collapse; table-layout: fixed; }
-    td { border: 1px solid #000; font-size: 16pt; vertical-align: middle; padding: 4px; }
-    .top { height: 62px; text-align: center; font-size: 22pt; font-weight: 700; color: #ff0000; white-space: nowrap; }
-    .label { height: 46px; text-align: center; font-size: 12pt; font-weight: 700; white-space: nowrap; }
-    .smallCenter { text-align: center; font-size: 14pt; }
-    .orange { background: #f4b183; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
-    .blue { background: #8eaadb; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
-    .green { background: #a9d18e; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
-    .cyan { background: #c9f1ef; text-align: center; height: 46px; font-size: 22pt; font-weight: 700; }
-    .text { vertical-align: top; line-height: 1.45; font-size: 15pt; padding: 10px 8px; white-space: normal; mso-wrap-style: square; mso-data-placement: same-cell; }
-    .subTitle { vertical-align: middle; text-align: left; font-weight: 700; background: #f7f9fc; }
-    .homeworkBox { text-align: center; font-size: 16pt; border: 2px solid #107c41; }
-  </style>
-</head>
-<body>
-  <table width="1910">
-    <col width="125" /><col width="125" /><col width="165" /><col width="300" />
-    <col width="165" /><col width="180" /><col width="205" />
-    <col width="205" /><col width="205" /><col width="205" />
-    <tr>
-      <td class="top" colspan="3">${lessonTitle}</td>
-      <td class="top" colspan="3">【上课时间】${classDate}&nbsp;&nbsp;${classTime}</td>
-      <td class="top" colspan="4">【任课老师】${teacherName}</td>
-    </tr>
-    <tr>
-      <td class="label">学员姓名</td>
-      <td class="label">出席情况</td>
-      <td class="label" colspan="3">课堂表现点评</td>
-      <td class="label">作业完成情况</td>
-      <td class="green" colspan="4">三、学生吸收情况</td>
-    </tr>
-    <tr>
-      <td class="smallCenter">${studentName}</td>
-      <td class="smallCenter">${attendance}</td>
-      <td class="smallCenter" colspan="3">认真程度：${seriousness}&nbsp;&nbsp;&nbsp;&nbsp;互动性：${interaction}</td>
-      <td class="smallCenter">${homeworkStatus}</td>
-      <td class="text" colspan="4" rowspan="3" style="height:${absorptionHeight}px">${absorption}</td>
-    </tr>
-    <tr>
-      <td class="orange" colspan="6">一、本节课教学内容</td>
-    </tr>
-    <tr height="${contentHeight}">
-      <td class="text" colspan="6">${content}</td>
-    </tr>
-    <tr>
-      <td class="blue" colspan="6">二、本节课重难点</td>
-      <td class="cyan" colspan="4">四、作业布置</td>
-    </tr>
-    <tr height="${subTitleHeight}">
-      <td class="text subTitle" colspan="6">一、知识重点</td>
-      <td class="homeworkBox" colspan="4" rowspan="4">${homework}</td>
-    </tr>
-    <tr height="${finalKeyPointsHeight}">
-      <td class="text" colspan="6">${keyPoints}</td>
-    </tr>
-    <tr height="${subTitleHeight}">
-      <td class="text subTitle" colspan="6">二、核心难点</td>
-    </tr>
-    <tr height="${finalDifficultPointsHeight}">
-      <td class="text" colspan="6">${difficultPoints}</td>
-    </tr>
-  </table>
-</body>
-</html>`;
 }
 
 export default function App() {
@@ -530,18 +400,15 @@ export default function App() {
     const teacherName = meta.teacherName;
     const lessonNumber = toLessonNumber(meta.lessonNumber);
     const downloadMeta = { ...meta, lessonNumber: String(lessonNumber) };
-    const html = buildTemplateExcel(result, downloadMeta);
     const studentName = safeFilePart(result.studentName, "学生");
     const courseName = safeFilePart(result.courseName, "课程");
     const lessonName = safeFilePart(`第${lessonNumber}次课`, "课次");
-    const blob = new Blob(["\ufeff", html], {
-      type: "application/vnd.ms-excel;charset=utf-8",
-    });
+    const blob = createTemplateExcelBlob(result, downloadMeta);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `${studentName}-${courseName}-${lessonName}.xls`;
+    link.download = `${studentName}-${courseName}-${lessonName}.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
