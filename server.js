@@ -51,6 +51,10 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     storage: useSupabase ? "supabase" : "local",
+    aiProvider,
+    aiModel: aiProvider === "anthropic"
+      ? process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6"
+      : process.env.OPENAI_MODEL || "gpt-5.5",
   });
 });
 
