@@ -103,7 +103,14 @@ function columnNumber(column) {
 }
 
 function columnName(index) {
-  return String.fromCharCode(64 + index);
+  let name = "";
+  let value = index;
+  while (value > 0) {
+    value -= 1;
+    name = String.fromCharCode(65 + (value % 26)) + name;
+    value = Math.floor(value / 26);
+  }
+  return name;
 }
 
 function normalizeTemplateData(result, meta) {
@@ -247,15 +254,20 @@ function coreXml() {
 function stylesXml() {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="6">
+  <fonts count="11">
     <font><sz val="15"/><name val="宋体"/></font>
     <font><b/><sz val="22"/><color rgb="FFFF0000"/><name val="宋体"/></font>
     <font><b/><sz val="13"/><name val="宋体"/></font>
     <font><sz val="13"/><name val="宋体"/></font>
     <font><b/><sz val="22"/><name val="宋体"/></font>
     <font><sz val="16"/><name val="宋体"/></font>
+    <font><b/><sz val="26"/><name val="Microsoft YaHei"/></font>
+    <font><b/><sz val="20"/><name val="Microsoft YaHei"/></font>
+    <font><b/><sz val="20"/><color rgb="FFFF0000"/><name val="Microsoft YaHei"/></font>
+    <font><b/><sz val="15"/><name val="Microsoft YaHei"/></font>
+    <font><sz val="13"/><name val="Microsoft YaHei"/></font>
   </fonts>
-  <fills count="7">
+  <fills count="12">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFF4B183"/><bgColor indexed="64"/></patternFill></fill>
@@ -263,13 +275,18 @@ function stylesXml() {
     <fill><patternFill patternType="solid"><fgColor rgb="FFA9D18E"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFC9F1EF"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFF7F9FC"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFE699"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFF4B6BD"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF92D050"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF9FE3DF"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
     <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="11">
+  <cellXfs count="24">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
@@ -281,6 +298,19 @@ function stylesXml() {
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="4" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="4" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="6" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="8" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="9" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="10" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="10" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf>
+    <xf numFmtId="0" fontId="7" fillId="9" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="7" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="7" fillId="10" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="7" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="10" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="10" fillId="11" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -446,4 +476,123 @@ export function createTemplateExcelBuffer(result, meta) {
 
 export function createTemplateExcelBlob(result, meta) {
   return new Blob([createTemplateExcelBuffer(result, meta)], { type: MIME_XLSX });
+}
+
+function groupWorkbookXml(lastRow) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${SHEET_NAME}" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">'${SHEET_NAME}'!$A$1:$P$${lastRow}</definedName></definedNames></workbook>`;
+}
+
+function groupStyleForCell(row, column, layout) {
+  if (row === 1) return 13;
+  if (row === 2) return 14;
+  if (row === 3 && column >= 7) return 18;
+  if (row === 3) return 15;
+  if (row >= 4 && row <= layout.studentEnd && column <= 6) return column >= 3 && column <= 4 ? 17 : 16;
+  if (row >= 4 && row <= layout.teachingContent && column >= 7) return 17;
+  if (row === layout.teachingTitle && column <= 6) return 19;
+  if (row === layout.teachingContent && column <= 6) return 22;
+  if (row === layout.difficultTitle && column <= 6) return 20;
+  if (row === layout.difficultTitle && column >= 7) return 21;
+  if (row === layout.difficultContent) return 22;
+  return STYLE.normal;
+}
+
+export function buildGroupClassWorksheetModel(data) {
+  const students = Array.isArray(data.students) ? data.students : [];
+  const rowCount = Math.max(students.length, 1);
+  const studentEnd = 3 + rowCount;
+  const teachingTitle = studentEnd + 1;
+  const teachingContent = teachingTitle + 1;
+  const difficultTitle = teachingContent + 1;
+  const difficultContent = difficultTitle + 1;
+  const layout = { studentEnd, teachingTitle, teachingContent, difficultTitle, difficultContent };
+  const values = {
+    A1: `${[data.classTitle || "班级", `${data.grade || ""}${data.subject || ""}`].filter(Boolean).join("·")}·教学反馈`,
+    A2: `【上课时间】${formatDateLabel(data.classDate)} ${data.classTime || "13:10-15:10"}  【课次】第${data.lessonNumber || 1}次`,
+    A3: "学员姓名",
+    B3: "出席情况",
+    C3: "课堂表现点评",
+    E3: "入门测（30分）",
+    G3: "三、学生吸收情况",
+    G4: cellText(data.absorption),
+    [`A${teachingTitle}`]: "一、本节课教学内容",
+    [`A${teachingContent}`]: cellText(data.teachingContent),
+    [`A${difficultTitle}`]: "二、本节课重难点",
+    [`G${difficultTitle}`]: "四、作业",
+    [`A${difficultContent}`]: cellText(data.difficultPoints),
+    [`G${difficultContent}`]: cellText(data.homework),
+  };
+
+  students.forEach((student, index) => {
+    const row = index + 4;
+    values[`A${row}`] = student.name || "";
+    values[`B${row}`] = student.attendance === "出席" ? "√" : student.attendance || "";
+    values[`C${row}`] = cellText(student.quickNote);
+    values[`E${row}`] = student.score ?? "";
+  });
+
+  const merges = [
+    "A1:P1", "A2:P2", "C3:D3", "E3:F3", "G3:P3",
+    `G4:P${teachingContent}`, `A${teachingTitle}:F${teachingTitle}`,
+    `A${teachingContent}:F${teachingContent}`, `A${difficultTitle}:F${difficultTitle}`,
+    `G${difficultTitle}:P${difficultTitle}`, `A${difficultContent}:F${difficultContent}`,
+    `G${difficultContent}:P${difficultContent}`,
+  ];
+
+  for (let row = 4; row <= studentEnd; row += 1) {
+    merges.push(`C${row}:D${row}`, `E${row}:F${row}`);
+  }
+
+  return {
+    sheetName: SHEET_NAME,
+    columns: { A: 8.5, B: 8.25, C: 10, D: 10, E: 10.75, F: 10.75, G: 9.75, H: 9.75, I: 9.75, J: 9.75, K: 9.75, L: 9.75, M: 9.75, N: 9.75, O: 9.75, P: 9.75 },
+    merges,
+    values,
+    layout,
+    rowHeights: Object.fromEntries(Array.from({ length: difficultContent }, (_, index) => {
+      const row = index + 1;
+      if (row === 1) return [row, 54];
+      if (row === 2) return [row, 42];
+      if (row === 3 || row === teachingTitle || row === difficultTitle) return [row, 40];
+      if (row >= 4 && row <= studentEnd) return [row, 42];
+      if (row === teachingContent) return [row, 38];
+      return [row, 64];
+    })),
+  };
+}
+
+function groupWorksheetXml(model) {
+  const columnXml = Object.entries(model.columns).map(([column, width]) => `<col min="${columnNumber(column)}" max="${columnNumber(column)}" width="${width}" customWidth="1"/>`).join("");
+  const rowsXml = Array.from({ length: 60 }, (_, rowIndex) => {
+    const row = rowIndex + 1;
+    const cells = Array.from({ length: 52 }, (_, columnIndex) => {
+      const ref = `${columnName(columnIndex + 1)}${row}`;
+      const insideTemplate = row <= model.layout.difficultContent && columnIndex + 1 <= 16;
+      const style = insideTemplate ? groupStyleForCell(row, columnIndex + 1, model.layout) : 23;
+      const value = model.values[ref];
+      if (columnIndex + 1 === 5 && row >= 4 && row <= model.layout.studentEnd && value !== "" && Number.isFinite(Number(value))) {
+        return `<c r="${ref}" s="${style}"><v>${Number(value)}</v></c>`;
+      }
+      return cellXml(ref, value, style);
+    }).join("");
+    const height = model.rowHeights[row];
+    return `<row r="${row}"${height ? ` ht="${height}" customHeight="1"` : ""}>${cells}</row>`;
+  }).join("");
+  const mergesXml = model.merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:AZ60"/><sheetViews><sheetView showGridLines="0" showRowColHeaders="1" zoomScale="85" zoomScaleNormal="85" workbookViewId="0"><selection activeCell="A1" sqref="A1"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${columnXml}</cols><sheetData>${rowsXml}</sheetData><mergeCells count="${model.merges.length}">${mergesXml}</mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.15" right="0.15" top="0.15" bottom="0.15" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+
+export function createGroupClassExcelBuffer(data) {
+  const model = buildGroupClassWorksheetModel(data);
+  return createZip([
+    ["[Content_Types].xml", contentTypesXml()], ["_rels/.rels", rootRelsXml()],
+    ["docProps/app.xml", appXml()], ["docProps/core.xml", coreXml()],
+    ["xl/workbook.xml", groupWorkbookXml(model.layout.difficultContent)], ["xl/_rels/workbook.xml.rels", workbookRelsXml()],
+    ["xl/styles.xml", stylesXml()], ["xl/worksheets/sheet1.xml", groupWorksheetXml(model)],
+  ]);
+}
+
+export function createGroupClassExcelBlob(data) {
+  return new Blob([createGroupClassExcelBuffer(data)], { type: MIME_XLSX });
 }

@@ -19,6 +19,12 @@ data/*.json
 !.vscode/extensions.json
 .idea
 .worktrees/
+班课反馈模板示例-v*-qa.html
+班课反馈模板示例-v*-qa.pdf
+班课反馈模板示例-v*-qa.png
+班课反馈模板示例-v*-qa.files/
+班课反馈模板示例-v[2-5].xlsx
+~$*.xlsx
 .DS_Store
 *.suo
 *.ntvs*

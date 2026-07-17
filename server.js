@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +16,8 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "data");
 const studentsFile = path.join(dataDir, "students.json");
 const lessonsFile = path.join(dataDir, "lessons.json");
+const groupClassesFile = path.join(dataDir, "group-classes.json");
+const groupLessonsFile = path.join(dataDir, "group-lessons.json");
 const defaultTeacherName = "陈思桦";
 const studentTeacherColumn = "teacher_name";
 const studentLessonColumn = "last_lesson_number";
@@ -215,6 +218,97 @@ async function saveLessonRecord(value) {
   next.push(record);
   next.sort((a, b) => lessonRecordKey(a).localeCompare(lessonRecordKey(b), "zh-Hans-CN"));
   await fs.writeFile(lessonsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return record;
+}
+
+async function ensureJsonStore(file) {
+  await fs.mkdir(dataDir, { recursive: true });
+  try { await fs.access(file); } catch { await fs.writeFile(file, "[]\n", "utf8"); }
+}
+
+function normalizeGroupClass(value) {
+  return {
+    id: String(value?.id || randomUUID()),
+    teacherName: normalizeTeacherName(value?.teacherName ?? value?.teacher_name),
+    classInfo: String(value?.classInfo || value?.class_info || "").trim(),
+    defaultTime: String(value?.defaultTime || value?.default_time || "13:10-15:10").trim(),
+    lastLessonNumber: normalizeLessonNumber(value?.lastLessonNumber ?? value?.last_lesson_number),
+    students: (Array.isArray(value?.students) ? value.students : []).map((item) => String(item?.name || item).trim()).filter(Boolean),
+  };
+}
+
+async function readGroupClasses(teacherName) {
+  if (useSupabase) {
+    const classes = await supabaseRequest(`/group_classes?teacher_name=eq.${encodeURIComponent(teacherName)}&select=id,teacher_name,class_info,default_time,last_lesson_number&order=created_at.asc`);
+    const ids = classes.map((item) => item.id);
+    const members = ids.length ? await supabaseRequest(`/group_class_students?class_id=in.(${ids.map(encodeURIComponent).join(",")})&select=class_id,name,display_order&order=display_order.asc`) : [];
+    return classes.map((item) => normalizeGroupClass({ ...item, students: members.filter((member) => member.class_id === item.id).map((member) => member.name) }));
+  }
+  await ensureJsonStore(groupClassesFile);
+  const records = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+  return records.map(normalizeGroupClass).filter((item) => item.teacherName === teacherName);
+}
+
+async function createGroupClassRecord(value) {
+  const record = normalizeGroupClass(value);
+  if (!record.classInfo) throw new Error("请输入班级信息。");
+  if (useSupabase) {
+    await supabaseRequest("/group_classes", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, teacher_name: record.teacherName, class_info: record.classInfo, default_time: record.defaultTime, last_lesson_number: 0 }) });
+    return record;
+  }
+  await ensureJsonStore(groupClassesFile);
+  const records = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+  records.push(record);
+  await fs.writeFile(groupClassesFile, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  return record;
+}
+
+async function updateGroupClassRecord(id, value) {
+  const students = (Array.isArray(value?.students) ? value.students : []).map((item) => String(item?.name || item).trim()).filter(Boolean);
+  if (useSupabase) {
+    await supabaseRequest(`/group_classes?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ class_info: String(value?.classInfo || "").trim(), default_time: String(value?.defaultTime || "").trim() }) });
+    await supabaseRequest(`/group_class_students?class_id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (students.length) await supabaseRequest("/group_class_students", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(students.map((name, display_order) => ({ class_id: id, name, display_order }))) });
+  } else {
+    await ensureJsonStore(groupClassesFile);
+    const records = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+    const next = records.map((item) => item.id === id ? { ...item, classInfo: value.classInfo, defaultTime: value.defaultTime, students } : item);
+    await fs.writeFile(groupClassesFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  }
+  return { id, students };
+}
+
+async function deleteGroupClassRecord(id) {
+  if (useSupabase) {
+    await supabaseRequest(`/group_classes?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+  } else {
+    await ensureJsonStore(groupClassesFile);
+    const records = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+    await fs.writeFile(groupClassesFile, `${JSON.stringify(records.filter((item) => item.id !== id), null, 2)}\n`, "utf8");
+    await ensureJsonStore(groupLessonsFile);
+    const lessons = JSON.parse(await fs.readFile(groupLessonsFile, "utf8") || "[]");
+    await fs.writeFile(groupLessonsFile, `${JSON.stringify(lessons.filter((item) => item.classId !== id), null, 2)}\n`, "utf8");
+  }
+}
+
+async function saveGroupLessonRecord(value) {
+  const classId = String(value?.classId || "").trim();
+  const lessonNumber = normalizeLessonNumber(value?.lessonNumber);
+  if (!classId || lessonNumber < 1) throw new Error("整节班课缺少班级或有效课次。");
+  const record = { ...value, classId, lessonNumber, teacherName: normalizeTeacherName(value?.teacherName), updatedAt: new Date().toISOString() };
+  if (useSupabase) {
+    await supabaseRequest("/group_lesson_records?on_conflict=class_id,lesson_number", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ class_id: classId, teacher_name: record.teacherName, lesson_number: lessonNumber, class_date: record.classDate || null, class_time: record.classTime || "", raw_text: record.rawText || "", teaching_content: record.teachingContent || "", difficult_points: record.difficultPoints || "", absorption: record.absorption || "", homework: record.homework || "", students: record.students || [], updated_at: record.updatedAt }) });
+    await supabaseRequest(`/group_classes?id=eq.${encodeURIComponent(classId)}`, { method: "PATCH", body: JSON.stringify({ last_lesson_number: lessonNumber }) });
+  } else {
+    await ensureJsonStore(groupLessonsFile);
+    const records = JSON.parse(await fs.readFile(groupLessonsFile, "utf8") || "[]");
+    const next = records.filter((item) => !(item.classId === classId && item.lessonNumber === lessonNumber));
+    next.push(record);
+    await fs.writeFile(groupLessonsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    await ensureJsonStore(groupClassesFile);
+    const classes = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+    await fs.writeFile(groupClassesFile, `${JSON.stringify(classes.map((item) => item.id === classId ? { ...item, lastLessonNumber: lessonNumber } : item), null, 2)}\n`, "utf8");
+  }
   return record;
 }
 
@@ -643,6 +737,53 @@ app.patch("/api/students/:name/lesson", async (req, res) => {
   }
 });
 
+app.get("/api/group-classes", async (req, res) => {
+  try {
+    const teacherName = normalizeTeacherName(req.query?.teacherName);
+    res.json({ classes: await readGroupClasses(teacherName), storage: useSupabase ? "supabase" : "local" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("读取班级", error) });
+  }
+});
+
+app.post("/api/group-classes", async (req, res) => {
+  try {
+    const record = await createGroupClassRecord(req.body);
+    res.json({ class: record, storage: useSupabase ? "supabase" : "local" });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "创建班级失败" });
+  }
+});
+
+app.patch("/api/group-classes/:id", async (req, res) => {
+  try {
+    res.json({ ok: true, class: await updateGroupClassRecord(req.params.id, req.body) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("更新班级名单", error) });
+  }
+});
+
+app.delete("/api/group-classes/:id", async (req, res) => {
+  try {
+    await deleteGroupClassRecord(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("删除班级", error) });
+  }
+});
+
+app.post("/api/group-lessons", async (req, res) => {
+  try {
+    res.json({ ok: true, lesson: await saveGroupLessonRecord(req.body), storage: useSupabase ? "supabase" : "local" });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: error?.message || "保存整节班课失败" });
+  }
+});
+
 app.post("/api/lessons", async (req, res) => {
   try {
     const lesson = await saveLessonRecord(req.body);
@@ -653,6 +794,28 @@ app.post("/api/lessons", async (req, res) => {
     const message = String(error?.message || "");
     const status = message.includes("缺少学生姓名") ? 400 : 500;
     res.status(status).json({ error: publicStorageError("保存班课记录", error) });
+  }
+});
+
+app.post("/api/generate-group-feedback", async (req, res) => {
+  try {
+    const { rawText = "", classInfo = "", students = [] } = req.body || {};
+    if (!String(rawText).trim()) return res.status(400).json({ error: "请输入整班课堂记录。" });
+    const missingAiConfig = getMissingAiConfig();
+    if (missingAiConfig) return res.status(500).json({ error: missingAiConfig });
+    const prompt = `你是教培机构班课老师。请根据整班课堂记录生成严格JSON，不要Markdown。\n班级：${classInfo}\n课堂记录：${rawText}\n学生数据：${JSON.stringify(students)}\n输出格式：{"teachingContent":"","difficultPoints":"","absorption":"","homework":"","students":[{"name":"","performanceComment":""}]}。要求：公共内容具体；absorption必须包含4个编号段落，兼顾整体和个人；每名学生只写一句20-50字课堂表现，表达互不重复；已有quickNote必须忠实润色，空白时可生成一般性、非虚构的多样化描述；不得修改姓名、出勤、作业和分数。`;
+    const parsed = extractJson(await generateAiText(prompt));
+    const comments = new Map((Array.isArray(parsed.students) ? parsed.students : []).map((item) => [String(item.name), String(item.performanceComment || "").trim()]));
+    res.json({
+      teachingContent: String(parsed.teachingContent || "").trim(),
+      difficultPoints: String(parsed.difficultPoints || "").trim(),
+      absorption: String(parsed.absorption || "").trim(),
+      homework: String(parsed.homework || "").trim(),
+      students: students.map((item) => ({ name: item.name, performanceComment: comments.get(String(item.name)) || String(item.quickNote || "").trim() })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error?.message || "生成班课反馈失败" });
   }
 });
 
