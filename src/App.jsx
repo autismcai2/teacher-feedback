@@ -626,7 +626,7 @@ function OneToOneWorkspace() {
 }
 
 export default function App() {
-  const [workspace, setWorkspace] = useState("home");
+  const [workspace, setWorkspace] = useState(() => new URLSearchParams(window.location.search).get("workspace") || "home");
 
   if (workspace === "one-to-one") {
     return (
