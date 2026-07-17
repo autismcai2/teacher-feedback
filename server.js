@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "data");
 const studentsFile = path.join(dataDir, "students.json");
+const lessonsFile = path.join(dataDir, "lessons.json");
 const defaultTeacherName = "陈思桦";
 const studentTeacherColumn = "teacher_name";
 const studentLessonColumn = "last_lesson_number";
@@ -141,6 +142,80 @@ async function ensureStudentStore() {
   } catch {
     await fs.writeFile(studentsFile, "[]\n", "utf8");
   }
+}
+
+async function ensureLessonsStore() {
+  await fs.mkdir(dataDir, { recursive: true });
+
+  try {
+    await fs.access(lessonsFile);
+  } catch {
+    await fs.writeFile(lessonsFile, "[]\n", "utf8");
+  }
+}
+
+function normalizeLessonRecord(value) {
+  const teacherName = normalizeTeacherName(value?.teacherName);
+  const studentName = String(value?.studentName || "").trim();
+  const lessonNumber = normalizeLessonNumber(value?.lessonNumber);
+
+  if (!studentName || lessonNumber < 1) return null;
+
+  return {
+    teacherName,
+    studentName,
+    lessonNumber,
+    classDate: String(value?.classDate || "").trim(),
+    classTime: String(value?.classTime || "").trim(),
+    attendance: String(value?.attendance || "").trim(),
+    homeworkStatus: String(value?.homeworkStatus || "").trim(),
+    seriousness: normalizeLessonNumber(value?.seriousness),
+    interaction: normalizeLessonNumber(value?.interaction),
+    rawText: String(value?.rawText || "").trim(),
+    feedback: value?.feedback && typeof value.feedback === "object" ? value.feedback : {},
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function lessonRecordKey(record) {
+  return `${record.teacherName}\u0000${record.studentName}\u0000${record.lessonNumber}`;
+}
+
+async function saveLessonRecord(value) {
+  const record = normalizeLessonRecord(value);
+  if (!record) throw new Error("班课记录缺少学生姓名或有效课次。");
+
+  if (useSupabase) {
+    await supabaseRequest("/lesson_records?on_conflict=teacher_name,student_name,lesson_number", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({
+        teacher_name: record.teacherName,
+        student_name: record.studentName,
+        lesson_number: record.lessonNumber,
+        class_date: record.classDate || null,
+        class_time: record.classTime,
+        attendance: record.attendance,
+        homework_status: record.homeworkStatus,
+        seriousness: record.seriousness,
+        interaction: record.interaction,
+        raw_text: record.rawText,
+        feedback: record.feedback,
+        updated_at: record.updatedAt,
+      }),
+    });
+    return record;
+  }
+
+  await ensureLessonsStore();
+  const text = await fs.readFile(lessonsFile, "utf8");
+  const records = JSON.parse(text || "[]");
+  const key = lessonRecordKey(record);
+  const next = records.filter((item) => lessonRecordKey(item) !== key);
+  next.push(record);
+  next.sort((a, b) => lessonRecordKey(a).localeCompare(lessonRecordKey(b), "zh-Hans-CN"));
+  await fs.writeFile(lessonsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return record;
 }
 
 function normalizeLessonNumber(value, fallback = 0) {
@@ -568,9 +643,22 @@ app.patch("/api/students/:name/lesson", async (req, res) => {
   }
 });
 
+app.post("/api/lessons", async (req, res) => {
+  try {
+    const lesson = await saveLessonRecord(req.body);
+    await updateStudentLessonNumber(lesson.teacherName, lesson.studentName, lesson.lessonNumber);
+    res.json({ ok: true, lesson, storage: useSupabase ? "supabase" : "local" });
+  } catch (error) {
+    console.error(error);
+    const message = String(error?.message || "");
+    const status = message.includes("缺少学生姓名") ? 400 : 500;
+    res.status(status).json({ error: publicStorageError("保存班课记录", error) });
+  }
+});
+
 app.post("/api/generate-feedback", async (req, res) => {
   try {
-    const { rawText, style = "温和鼓励" } = req.body;
+    const { rawText, style = "温和鼓励", meta = {} } = req.body;
 
     if (!rawText || !rawText.trim()) {
       return res.status(400).json({ error: "请输入课堂记录。" });
@@ -593,7 +681,7 @@ app.post("/api/generate-feedback", async (req, res) => {
 - keyPoints：本节课重点。用“1. ...；2. ...；3. ...”这样的编号格式组织，开头不要加分号或其他标点，120-220 字，要具体到知识点、方法、题型或解题步骤。
 - difficultPoints：本节课难点。120-220 字，要说明学生容易卡在哪里，不能只写“综合运用较难”。
 - absorption：学生吸收情况。180-300 字，必须结合 todayContent/keyPoints/difficultPoints 来写：哪些内容吸收较好，哪些内容还需要练习，原因是什么，后续如何巩固。不要写空泛评价。
-- classroomPerformance：课堂表现。80-160 字，结合课堂专注度、互动、答题、思路跟进情况来写；如果原文没有提到，要基于课堂记录谨慎推断。
+- classroomPerformance：学生课堂表现。只写一句话，约 20-50 字，不要分点，不要展开成长段；只保留专注度、互动、答题或思路跟进中最关键的表现。如果原文没有提到，要基于课堂记录谨慎表达，不要编造。
 - homework：作业布置。原文有作业就按原文整理；没有提到时写“暂无明确作业安排，建议围绕本节重点进行针对性巩固。”
 - nextSuggestion：后续学习建议。120-220 字，必须给出和本节课内容对应的具体练习建议。
 - parentFeedback：可直接发给家长的一段话。220-380 字，语气自然，必须包含今天学习的具体内容、孩子掌握情况、当前还需加强的具体点、作业或课后巩固建议。
@@ -609,6 +697,15 @@ app.post("/api/generate-feedback", async (req, res) => {
 
 用户输入：
 ${rawText}
+
+已确认班课信息（优先于从原文推断）：
+${JSON.stringify({
+  studentName: meta.studentName || "",
+  teacherName: meta.teacherName || "",
+  lessonNumber: meta.lessonNumber || "",
+  classDate: meta.classDate || "",
+  classTime: meta.classTime || "",
+})}
 `;
 
     const data = cleanFeedbackData(extractJson(await generateAiText(prompt)));

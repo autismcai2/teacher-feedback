@@ -146,3 +146,53 @@ test("keepalive endpoint validates Supabase configuration before reporting succe
   assert.equal(response.status, 500);
   assert.match(data.error, /SUPABASE_URL/);
 });
+
+test("lesson endpoint validates required class data", async (t) => {
+  const server = await startServer({
+    SUPABASE_URL: "",
+    SUPABASE_SERVICE_ROLE_KEY: "",
+    SUPABASE_SECRET_KEY: "",
+  });
+
+  t.after(() => server.stop());
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/lessons`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teacherName: "测试老师", lessonNumber: 1 }),
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(data.error, /学生姓名/);
+});
+
+test("lesson endpoint saves a complete local class record", async (t) => {
+  const server = await startServer({
+    SUPABASE_URL: "",
+    SUPABASE_SERVICE_ROLE_KEY: "",
+    SUPABASE_SECRET_KEY: "",
+  });
+
+  t.after(() => server.stop());
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/lessons`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      teacherName: "测试老师",
+      studentName: "测试学生",
+      lessonNumber: 3,
+      classDate: "2026-07-17",
+      rawText: "课堂原始记录",
+      feedback: { courseName: "数学", parentFeedback: "课堂反馈" },
+    }),
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.storage, "local");
+  assert.equal(data.lesson.studentName, "测试学生");
+  assert.equal(data.lesson.feedback.courseName, "数学");
+});
