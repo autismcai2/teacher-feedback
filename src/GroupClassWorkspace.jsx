@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, MoreHorizontal, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { createGroupClassExcelBlob } from "./excel-template";
 
@@ -42,6 +42,7 @@ export default function GroupClassWorkspace({ onBack }) {
       return normalizeClassProfiles(INITIAL_CLASS_PROFILES);
     }
   });
+  const initialClassProfile = useRef(classProfiles[0]);
   const [students, setStudents] = useState(() => (classProfiles[0].students || []).map(makeStudent));
   const [classInfo, setClassInfo] = useState({ classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" });
   const [rawText, setRawText] = useState("");
@@ -84,8 +85,15 @@ export default function GroupClassWorkspace({ onBack }) {
         const response = await fetch(`${GROUP_CLASSES_API}?teacherName=${encodeURIComponent(GROUP_TEACHER_NAME)}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "读取班级失败");
-        if (!data.classes?.length) return;
-        const profiles = normalizeClassProfiles(data.classes.map((item) => ({ id: item.id, teacherName: item.teacherName, title: item.classInfo, grade: "", subject: "", defaultTime: item.defaultTime, lastLessonNumber: item.lastLessonNumber, students: item.students })));
+        let remoteClasses = data.classes || [];
+        if (!remoteClasses.length) {
+          const initial = initialClassProfile.current;
+          const createResponse = await fetch(GROUP_CLASSES_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherName: GROUP_TEACHER_NAME, classInfo: classLabel(initial), defaultTime: initial.defaultTime, students: initial.students }) });
+          const created = await createResponse.json();
+          if (!createResponse.ok) throw new Error(created.error || "初始化班级失败");
+          remoteClasses = [created.class];
+        }
+        const profiles = normalizeClassProfiles(remoteClasses.map((item) => ({ id: item.id, teacherName: item.teacherName, title: item.classInfo, grade: "", subject: "", defaultTime: item.defaultTime, lastLessonNumber: item.lastLessonNumber, students: item.students })));
         const first = profiles[0];
         setClassProfiles(profiles);
         setClassInfo((previous) => ({ ...previous, classId: first.id, title: first.title, grade: "", subject: "", time: first.defaultTime, timeMode: first.defaultTime, lesson: String((first.lastLessonNumber || 0) + 1) }));

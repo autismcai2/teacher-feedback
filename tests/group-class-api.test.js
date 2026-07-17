@@ -44,10 +44,11 @@ test("class-course API persists roster, saves one whole lesson, and deletes the 
   const createdResponse = await fetch(`http://127.0.0.1:${server.port}/api/group-classes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ teacherName, classInfo: "2026暑期·初三数学", defaultTime: "13:10-15:10" }),
+    body: JSON.stringify({ teacherName, classInfo: "2026暑期·初三数学", defaultTime: "13:10-15:10", students: ["初始学生"] }),
   });
   const created = await createdResponse.json();
   assert.equal(createdResponse.status, 200);
+  assert.deepEqual(created.class.students, ["初始学生"]);
 
   const classId = created.class.id;
   const rosterResponse = await fetch(`http://127.0.0.1:${server.port}/api/group-classes/${classId}`, {

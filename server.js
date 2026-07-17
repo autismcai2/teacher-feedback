@@ -254,6 +254,9 @@ async function createGroupClassRecord(value) {
   if (!record.classInfo) throw new Error("请输入班级信息。");
   if (useSupabase) {
     await supabaseRequest("/group_classes", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, teacher_name: record.teacherName, class_info: record.classInfo, default_time: record.defaultTime, last_lesson_number: 0 }) });
+    if (record.students.length) {
+      await supabaseRequest("/group_class_students", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(record.students.map((name, display_order) => ({ class_id: record.id, name, display_order }))) });
+    }
     return record;
   }
   await ensureJsonStore(groupClassesFile);
