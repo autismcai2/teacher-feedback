@@ -4,6 +4,7 @@ import { createTemplateExcelBlob } from "./excel-template";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
+const LESSONS_API_URL = "/api/lessons";
 const DEFAULT_TEACHER_NAME = "陈思桦";
 const TEACHER_OPTIONS = ["陈思桦", "蔡沁沛"];
 const STUDENT_LESSON_STORAGE_KEY = "teacher-feedback.teacher-student-lessons.v1";
@@ -361,7 +362,11 @@ export default function App() {
       const response = await fetch(FEEDBACK_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, style }),
+        body: JSON.stringify({
+          rawText,
+          style,
+          meta: { ...meta, studentName: result.studentName },
+        }),
       });
 
       const data = await readJsonResponse(response, "AI 生成失败");
@@ -394,7 +399,7 @@ export default function App() {
     setTimeout(() => setCopied(""), 1600);
   }
 
-  function downloadExcel() {
+  async function downloadExcel() {
     if (!hasResult) return;
 
     const teacherName = meta.teacherName;
@@ -413,7 +418,28 @@ export default function App() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    await saveLesson(downloadMeta);
     void rememberStudentLesson(teacherName, result.studentName, lessonNumber);
+  }
+
+  async function saveLesson(downloadMeta) {
+    try {
+      const response = await fetch(LESSONS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...downloadMeta,
+          studentName: result.studentName,
+          rawText,
+          feedback: result,
+        }),
+      });
+      const data = await readJsonResponse(response, "保存班课记录失败");
+      if (!response.ok) throw new Error(data.error || "保存班课记录失败");
+    } catch (err) {
+      console.warn("Excel 已下载，但班课记录保存失败。", err);
+      setError(`Excel 已下载，但班课记录保存失败：${err.message || "未知错误"}`);
+    }
   }
 
   async function rememberStudentLesson(teacherName, studentName, lessonNumber) {

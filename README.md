@@ -51,6 +51,10 @@ https://teacher-feedback.onrender.com/
 
 ## Supabase 数据库设置
 
+推荐直接在 Supabase SQL Editor 执行仓库根目录的 `supabase-schema.sql`。它会创建学生表和完整班课记录表；同一老师、学生、课次重复保存时会更新原记录，不会产生重复班课。
+
+班课记录会在下载最终 `.xlsx` 模板时保存，包含上课日期时间、出勤、课堂评分、原始课堂记录和完整 AI 反馈 JSON。本地开发未配置 Supabase 时会写入 `data/lessons.json`。
+
 Supabase 用来保存学生名单和上次课次。正式部署时必须配置 Supabase，否则 Render 重新部署后数据可能丢失。
 
 ### 新项目建表 SQL
