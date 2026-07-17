@@ -83,6 +83,6 @@ test("group class template keeps attendance wide and performance comments on one
   const model = buildGroupClassWorksheetModel({ students: [{ name: "测试学生", attendance: "出席", quickNote: "课堂专注并且能够积极回答问题", score: 26 }] });
   assert.ok(model.columns.B >= 11);
   assert.ok(model.columns.C + model.columns.D >= 24);
-  assert.equal(Array.from(model.values.C4).length, 10);
-  assert.equal(model.values.C4, "课堂专注并且能够积极");
+  assert.equal(Array.from(model.values.C4).length, 12);
+  assert.equal(model.values.C4, "课堂专注并且能够积极回答");
 });
