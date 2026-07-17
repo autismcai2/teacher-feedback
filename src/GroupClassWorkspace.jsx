@@ -13,12 +13,12 @@ const INITIAL_CLASS_PROFILES = [
   { id: "2026-summer-junior3-math", title: "2026年夏季班", grade: "初三", subject: "数学", defaultTime: "13:10-15:10", students: seedStudents },
 ];
 const commentSeeds = [
-  "课堂专注，能够认真跟进讲解思路",
-  "学习态度认真，练习过程较为踏实",
-  "课堂投入度较好，能够积极配合教学安排",
-  "思维状态活跃，对重点内容反应较快",
-  "听课认真，能够及时完成课堂练习",
-  "课堂表现稳定，知识点跟进较为顺畅",
+  "课堂专注，认真听讲",
+  "勤学好问，练习踏实",
+  "积极配合，课堂投入",
+  "思维活跃，反应较快",
+  "听课认真，完成及时",
+  "表现稳定，跟进顺畅",
 ];
 
 function makeStudent(name, index) {
@@ -283,7 +283,7 @@ export default function GroupClassWorkspace({ onBack }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "生成班课反馈失败");
       const comments = new Map((data.students || []).map((item) => [item.name, item.performanceComment]));
-      setStudents((previous) => previous.map((student, index) => ({ ...student, quickNote: comments.get(student.name) || student.quickNote || commentSeeds[index % commentSeeds.length] })));
+      setStudents((previous) => previous.map((student, index) => ({ ...student, quickNote: Array.from(comments.get(student.name) || student.quickNote || commentSeeds[index % commentSeeds.length]).slice(0, 10).join("") })));
       setResults({ teachingContent: data.teachingContent || "", difficultPoints: data.difficultPoints || "", absorption: data.absorption || "", homework: data.homework || "" });
     } catch (error) {
       setApiError(error.message);
@@ -316,7 +316,7 @@ export default function GroupClassWorkspace({ onBack }) {
           <div className="studentCardList">{filteredStudents.map((student) => { const index = students.findIndex((item) => item.id === student.id); return <article className={`studentRecordCard ${editingStudent === student.id ? "editing" : ""}`} key={student.id}>
             {student.score !== "" && <span className="studentDone"><Check size={12} /></span>}
             <div className="studentCardTop"><span className="studentIndex">{String(index + 1).padStart(2, "0")}</span><input className="studentFullName" value={student.name} onFocus={() => setEditingStudent(student.id)} onBlur={() => setEditingStudent("")} onChange={(event) => updateStudent(student.id, { name: event.target.value })} /><MiniSegment kind="attendance" value={student.attendance} options={["出席", "请假", "缺席"]} onChange={(attendance) => updateStudent(student.id, { attendance })} /><MiniSegment kind="homework" value={student.homeworkStatus} options={["已完成", "部分", "未完成"]} onChange={(homeworkStatus) => updateStudent(student.id, { homeworkStatus })} /><div className="moreCell"><button className="moreButton" type="button" onClick={() => setMenuStudent(menuStudent === student.id ? "" : student.id)}><MoreHorizontal size={18} /></button>{menuStudent === student.id && <div className="rowMenu"><button type="button" onClick={() => { removeStudent(student.id); setMenuStudent(""); }}>删除学生</button></div>}</div></div>
-            <div className="studentCardBottom"><input className="quickInput" value={student.quickNote} onFocus={() => setEditingStudent(student.id)} onBlur={() => setEditingStudent("")} onChange={(event) => updateStudent(student.id, { quickNote: event.target.value })} placeholder="课堂表现记录（可留空，由AI自动生成）" /><button className={`scoreCell ${student.score !== "" ? "filled" : ""}`} type="button" onClick={() => openRecorder(index)}>{student.score === "" ? "+ 录分" : student.score === "缺考" ? "缺考" : `${student.score} / 30`}</button></div>
+            <div className="studentCardBottom"><input className="quickInput" maxLength={10} value={student.quickNote} onFocus={() => setEditingStudent(student.id)} onBlur={() => setEditingStudent("")} onChange={(event) => updateStudent(student.id, { quickNote: event.target.value })} placeholder="课堂表现（10字以内，可留空）" /><button className={`scoreCell ${student.score !== "" ? "filled" : ""}`} type="button" onClick={() => openRecorder(index)}>{student.score === "" ? "+ 录分" : student.score === "缺考" ? "缺考" : `${student.score} / 30`}</button></div>
           </article> })}</div>
           <footer className="addStudentRow"><span>{students.length} 名学生</span><div><input value={newStudent} onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} placeholder="输入新学员姓名" /><button type="button" onClick={addStudent}><Plus size={15} />添加</button></div></footer>
         </section>

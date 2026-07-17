@@ -78,3 +78,11 @@ test("group class template grows student rows and keeps four feedback sections",
   assert.equal(sheet.G13.v, "教材P9-P11");
   assert.equal(sheet["!ref"], "A1:AZ60");
 });
+
+test("group class template keeps attendance wide and performance comments on one short line", () => {
+  const model = buildGroupClassWorksheetModel({ students: [{ name: "测试学生", attendance: "出席", quickNote: "课堂专注并且能够积极回答问题", score: 26 }] });
+  assert.ok(model.columns.B >= 11);
+  assert.ok(model.columns.C + model.columns.D >= 24);
+  assert.equal(Array.from(model.values.C4).length, 10);
+  assert.equal(model.values.C4, "课堂专注并且能够积极");
+});

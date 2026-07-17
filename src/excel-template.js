@@ -286,7 +286,7 @@ function stylesXml() {
     <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="24">
+  <cellXfs count="25">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
@@ -311,6 +311,7 @@ function stylesXml() {
     <xf numFmtId="0" fontId="7" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="10" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="10" fillId="11" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="10" fillId="0" borderId="1" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="0" shrinkToFit="1"/></xf>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -488,7 +489,7 @@ function groupStyleForCell(row, column, layout) {
   if (row === 2) return 14;
   if (row === 3 && column >= 7) return 18;
   if (row === 3) return 15;
-  if (row >= 4 && row <= layout.studentEnd && column <= 6) return column >= 3 && column <= 4 ? 17 : 16;
+  if (row >= 4 && row <= layout.studentEnd && column <= 6) return column >= 3 && column <= 4 ? 24 : 16;
   if (row >= 4 && row <= layout.teachingContent && column >= 7) return 17;
   if (row === layout.teachingTitle && column <= 6) return 19;
   if (row === layout.teachingContent && column <= 6) return 22;
@@ -528,7 +529,7 @@ export function buildGroupClassWorksheetModel(data) {
     const row = index + 4;
     values[`A${row}`] = student.name || "";
     values[`B${row}`] = student.attendance === "出席" ? "√" : student.attendance || "";
-    values[`C${row}`] = cellText(student.quickNote);
+    values[`C${row}`] = Array.from(cellText(student.quickNote)).slice(0, 10).join("");
     values[`E${row}`] = student.score ?? "";
   });
 
@@ -546,7 +547,7 @@ export function buildGroupClassWorksheetModel(data) {
 
   return {
     sheetName: SHEET_NAME,
-    columns: { A: 8.5, B: 8.25, C: 10, D: 10, E: 10.75, F: 10.75, G: 9.75, H: 9.75, I: 9.75, J: 9.75, K: 9.75, L: 9.75, M: 9.75, N: 9.75, O: 9.75, P: 9.75 },
+    columns: { A: 8.5, B: 11, C: 12, D: 12, E: 9, F: 9, G: 9.75, H: 9.75, I: 9.75, J: 9.75, K: 9.75, L: 9.75, M: 9.75, N: 9.75, O: 9.75, P: 9.75 },
     merges,
     values,
     layout,

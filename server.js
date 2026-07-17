@@ -806,7 +806,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
     if (!String(rawText).trim()) return res.status(400).json({ error: "请输入整班课堂记录。" });
     const missingAiConfig = getMissingAiConfig();
     if (missingAiConfig) return res.status(500).json({ error: missingAiConfig });
-    const prompt = `你是教培机构班课老师。请根据整班课堂记录生成严格JSON，不要Markdown。\n班级：${classInfo}\n课堂记录：${rawText}\n学生数据：${JSON.stringify(students)}\n输出格式：{"teachingContent":"","difficultPoints":"","absorption":"","homework":"","students":[{"name":"","performanceComment":""}]}。要求：公共内容具体；absorption必须包含4个编号段落，兼顾整体和个人；每名学生只写一句20-50字课堂表现，表达互不重复；已有quickNote必须忠实润色，空白时可生成一般性、非虚构的多样化描述；不得修改姓名、出勤、作业和分数。`;
+    const prompt = `你是教培机构班课老师。请根据整班课堂记录生成严格JSON，不要Markdown。\n班级：${classInfo}\n课堂记录：${rawText}\n学生数据：${JSON.stringify(students)}\n输出格式：{"teachingContent":"","difficultPoints":"","absorption":"","homework":"","students":[{"name":"","performanceComment":""}]}。要求：公共内容具体；absorption必须包含4个编号段落，兼顾整体和个人；每名学生的performanceComment不得超过10个汉字，保持单行、表达互不重复；已有quickNote必须忠实精简，空白时可生成一般性、非虚构的多样化描述；不得修改姓名、出勤、作业和分数。`;
     const parsed = extractJson(await generateAiText(prompt));
     const comments = new Map((Array.isArray(parsed.students) ? parsed.students : []).map((item) => [String(item.name), String(item.performanceComment || "").trim()]));
     res.json({
@@ -814,7 +814,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
       difficultPoints: String(parsed.difficultPoints || "").trim(),
       absorption: String(parsed.absorption || "").trim(),
       homework: String(parsed.homework || "").trim(),
-      students: students.map((item) => ({ name: item.name, performanceComment: comments.get(String(item.name)) || String(item.quickNote || "").trim() })),
+      students: students.map((item) => ({ name: item.name, performanceComment: Array.from(comments.get(String(item.name)) || String(item.quickNote || "").trim()).slice(0, 10).join("") })),
     });
   } catch (error) {
     console.error(error);
