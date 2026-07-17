@@ -508,7 +508,7 @@ export function buildGroupClassWorksheetModel(data) {
   const difficultContent = difficultTitle + 1;
   const layout = { studentEnd, teachingTitle, teachingContent, difficultTitle, difficultContent };
   const values = {
-    A1: `${data.classTitle || "班级"}·${data.grade || ""}${data.subject || ""}·教学反馈`,
+    A1: `${[data.classTitle || "班级", `${data.grade || ""}${data.subject || ""}`].filter(Boolean).join("·")}·教学反馈`,
     A2: `【上课时间】${formatDateLabel(data.classDate)} ${data.classTime || "13:10-15:10"}  【课次】第${data.lessonNumber || 1}次`,
     A3: "学员姓名",
     B3: "出席情况",

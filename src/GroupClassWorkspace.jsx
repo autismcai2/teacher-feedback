@@ -22,7 +22,11 @@ function makeStudent(name, index) {
 }
 
 function normalizeClassProfiles(profiles) {
-  return profiles.map((profile) => ({ ...profile, students: (profile.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student) }));
+  return profiles.map((profile) => ({ ...profile, students: (profile.students || []).map((student) => typeof student === "string" ? student : student.name).filter(Boolean) }));
+}
+
+function classLabel(profile) {
+  return [profile.title, `${profile.grade || ""}${profile.subject || ""}`].filter(Boolean).join(" · ");
 }
 
 export default function GroupClassWorkspace({ onBack }) {
@@ -34,7 +38,7 @@ export default function GroupClassWorkspace({ onBack }) {
       return normalizeClassProfiles(INITIAL_CLASS_PROFILES);
     }
   });
-  const [students, setStudents] = useState(() => (classProfiles[0].students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
+  const [students, setStudents] = useState(() => (classProfiles[0].students || []).map(makeStudent));
   const [classInfo, setClassInfo] = useState({ classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" });
   const [rawText, setRawText] = useState("");
   const [newStudent, setNewStudent] = useState("");
@@ -51,7 +55,7 @@ export default function GroupClassWorkspace({ onBack }) {
   const [menuStudent, setMenuStudent] = useState("");
   const [editingStudent, setEditingStudent] = useState("");
   const [classDialog, setClassDialog] = useState("");
-  const [classDraft, setClassDraft] = useState({ title: "", grade: "", subject: "", defaultTime: "13:10-15:10" });
+  const [classDraft, setClassDraft] = useState({ info: "", defaultTime: "13:10-15:10" });
   const [results, setResults] = useState({ teachingContent: "", difficultPoints: "", absorption: "", homework: "" });
 
   const attendedStudents = useMemo(() => students.filter((student) => student.attendance === "出席"), [students]);
@@ -73,23 +77,29 @@ export default function GroupClassWorkspace({ onBack }) {
     setClassInfo((previous) => ({ ...previous, [key]: value }));
   }
 
+  function updateLessonNumber(value) {
+    if (value !== classInfo.lesson) {
+      const profile = classProfiles.find((item) => item.id === classInfo.classId);
+      setStudents((profile?.students || []).map(makeStudent));
+    }
+    updateClassInfo("lesson", value);
+  }
+
   function selectClass(classId) {
     const profile = classProfiles.find((item) => item.id === classId);
     if (!profile) return;
     setClassInfo((previous) => ({ ...previous, classId, title: profile.title, grade: profile.grade, subject: profile.subject, time: profile.defaultTime, timeMode: profile.defaultTime }));
-    setStudents((profile.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
+    setStudents((profile.students || []).map(makeStudent));
   }
 
   function createClass() {
-    const title = classDraft.title.trim();
-    const grade = classDraft.grade.trim();
-    const subject = classDraft.subject.trim();
-    if (!title || !grade || !subject) return;
-    const profile = { id: `class-${Date.now()}`, title, grade, subject, defaultTime: classDraft.defaultTime, students: [] };
+    const info = classDraft.info.trim();
+    if (!info) return;
+    const profile = { id: `class-${Date.now()}`, title: info, grade: "", subject: "", defaultTime: classDraft.defaultTime, students: [] };
     setClassProfiles((previous) => [...previous, profile]);
-    setClassInfo((previous) => ({ ...previous, classId: profile.id, title, grade, subject, time: profile.defaultTime, timeMode: profile.defaultTime, lesson: "1" }));
+    setClassInfo((previous) => ({ ...previous, classId: profile.id, title: info, grade: "", subject: "", time: profile.defaultTime, timeMode: profile.defaultTime, lesson: "1" }));
     setStudents([]);
-    setClassDraft({ title: "", grade: "", subject: "", defaultTime: "13:10-15:10" });
+    setClassDraft({ info: "", defaultTime: "13:10-15:10" });
     setClassDialog("");
   }
 
@@ -99,7 +109,7 @@ export default function GroupClassWorkspace({ onBack }) {
     const next = remaining[0];
     setClassProfiles(remaining);
     setClassInfo((previous) => ({ ...previous, classId: next.id, title: next.title, grade: next.grade, subject: next.subject, time: next.defaultTime, timeMode: next.defaultTime, lesson: "1" }));
-    setStudents((next.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
+    setStudents((next.students || []).map(makeStudent));
     setClassDialog("");
   }
 
@@ -113,7 +123,7 @@ export default function GroupClassWorkspace({ onBack }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${classInfo.title}-${classInfo.grade}${classInfo.subject}-第${classInfo.lesson}次-教学反馈.xlsx`;
+    link.download = `${classLabel(classInfo)}-第${classInfo.lesson}次-教学反馈.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -121,8 +131,11 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   function updateStudent(id, patch) {
+    const studentIndex = students.findIndex((student) => student.id === id);
     setStudents((previous) => previous.map((student) => (student.id === id ? { ...student, ...patch } : student)));
-    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).map((student) => student.id === id ? { ...student, ...patch } : student) } : profile));
+    if (patch.name !== undefined && studentIndex >= 0) {
+      setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).map((name, index) => index === studentIndex ? patch.name : name) } : profile));
+    }
   }
 
   function addStudent() {
@@ -130,13 +143,16 @@ export default function GroupClassWorkspace({ onBack }) {
     if (!name || students.some((student) => student.name === name)) return;
     const student = makeStudent(name, students.length);
     setStudents((previous) => [...previous, student]);
-    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: [...(profile.students || []), student] } : profile));
+    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: [...(profile.students || []), name] } : profile));
     setNewStudent("");
   }
 
   function removeStudent(id) {
+    const studentIndex = students.findIndex((student) => student.id === id);
     setStudents((previous) => previous.filter((student) => student.id !== id));
-    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).filter((student) => student.id !== id) } : profile));
+    if (studentIndex >= 0) {
+      setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).filter((_, index) => index !== studentIndex) } : profile));
+    }
   }
 
   function openRecorder(index = 0) {
@@ -189,7 +205,6 @@ export default function GroupClassWorkspace({ onBack }) {
       quickNote: student.quickNote.trim() || commentSeeds[index % commentSeeds.length],
     }));
     setStudents(generatedStudents);
-    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: generatedStudents } : profile));
     const studentSummary = generatedStudents.map((student) => `${student.name}${student.quickNote}，入门测${student.score === "" ? "暂未录入" : `${student.score}分`}`).join("；");
     setResults({
       teachingContent: rawText.trim() || "一元二次方程的概念、开平方法和配方法求解。",
@@ -213,8 +228,8 @@ export default function GroupClassWorkspace({ onBack }) {
 
       <main className="groupMain">
         <section className="courseWorkspace">
-          <header className="courseOverview"><div><span>当前班级</span><h1>{classInfo.title} · {classInfo.grade}{classInfo.subject}</h1><p>{classInfo.date} <span>{classInfo.time}</span></p></div><div className="overviewStats"><b>{students.length}<small>学员</small></b><b>{scoredCount}<small>已完成</small></b><b>第{classInfo.lesson}次<small>当前课次</small></b></div></header>
-          <div className="workspaceSection"><div className="workspaceTitle"><div><h2>本节课信息</h2><p>班级档案已绑定年级、科目与学生名单</p></div></div><div className="leftInfoGrid"><div className="classPicker classManager"><label className="groupField"><span>班级信息</span><select value={classInfo.classId} onChange={(event) => selectClass(event.target.value)}>{classProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.grade}{profile.subject}</option>)}</select></label><div><button type="button" onClick={() => setClassDialog("create")}><Plus size={15} />新增</button><button className="classDelete" type="button" onClick={() => setClassDialog("delete")}><Trash2 size={15} />删除</button></div></div><Field label="上课日期" type="date" value={classInfo.date} onChange={(value) => updateClassInfo("date", value)} /><ClassTimeField value={classInfo.time} mode={classInfo.timeMode} onChange={(time, timeMode) => setClassInfo((previous) => ({ ...previous, time, timeMode }))} /><Field label="课次" type="number" value={classInfo.lesson} onChange={(value) => updateClassInfo("lesson", value)} /></div></div>
+          <header className="courseOverview"><div><span>当前班级</span><h1>{classLabel(classInfo)}</h1><p>{classInfo.date} <span>{classInfo.time}</span></p></div><div className="overviewStats"><b>{students.length}<small>学员</small></b><b>{scoredCount}<small>已完成</small></b><b>第{classInfo.lesson}次<small>当前课次</small></b></div></header>
+          <div className="workspaceSection"><div className="workspaceTitle"><div><h2>本节课信息</h2><p>班级档案绑定学生名单和默认上课时段</p></div></div><div className="leftInfoGrid"><div className="classPicker classManager"><label className="groupField"><span>班级信息</span><select value={classInfo.classId} onChange={(event) => selectClass(event.target.value)}>{classProfiles.map((profile) => <option key={profile.id} value={profile.id}>{classLabel(profile)}</option>)}</select></label><div><button type="button" onClick={() => setClassDialog("create")}><Plus size={15} />新增</button><button className="classDelete" type="button" onClick={() => setClassDialog("delete")}><Trash2 size={15} />删除</button></div></div><Field label="上课日期" type="date" value={classInfo.date} onChange={(value) => updateClassInfo("date", value)} /><ClassTimeField value={classInfo.time} mode={classInfo.timeMode} onChange={(time, timeMode) => setClassInfo((previous) => ({ ...previous, time, timeMode }))} /><Field label="课次" type="number" value={classInfo.lesson} onChange={updateLessonNumber} /></div></div>
           <div className="workspaceSection aiSection"><div className="workspaceTitle"><div><h2>课堂记录与反馈生成</h2><p>记录本节内容、重点和整体课堂情况</p></div><div className="saveState"><Check size={15} />自动保存</div></div><textarea className="classNotes" value={rawText} onChange={(event) => setRawText(event.target.value)} placeholder="例如：本节课学习一元二次方程的概念、开平方法和配方法；重点练习二次三项式最值问题……" /><div className="generateRow"><button className="generateGroup" type="button" onClick={generateDraft}><Sparkles size={18} />生成班级反馈</button><button className="excelDownload" type="button" onClick={downloadGroupExcel}><Download size={17} />下载Excel</button></div><div className="resultTabs">{resultTabs.map(([key, label]) => <button className={activeResult === key ? "active" : ""} type="button" key={key} onClick={() => setActiveResult(key)}>{label}</button>)}</div><textarea className="tabResultEditor" value={results[activeResult]} onChange={(event) => setResults((previous) => ({ ...previous, [activeResult]: event.target.value }))} placeholder="生成后可在这里继续编辑" /></div>
         </section>
 
@@ -229,8 +244,8 @@ export default function GroupClassWorkspace({ onBack }) {
         </section>
       </main>
 
-      {classDialog === "create" && <div className="classDialogOverlay"><section className="classDialog"><header><div><h2>新增班级</h2><p>班级、年级、科目、默认时间和学生名单将绑定保存</p></div><button type="button" onClick={() => setClassDialog("")}><X size={18} /></button></header><div className="classDialogGrid"><Field label="班级名称" value={classDraft.title} onChange={(title) => setClassDraft((previous) => ({ ...previous, title }))} /><Field label="年级" value={classDraft.grade} onChange={(grade) => setClassDraft((previous) => ({ ...previous, grade }))} /><Field label="科目" value={classDraft.subject} onChange={(subject) => setClassDraft((previous) => ({ ...previous, subject }))} /><label className="groupField"><span>默认上课时间</span><select value={classDraft.defaultTime} onChange={(event) => setClassDraft((previous) => ({ ...previous, defaultTime: event.target.value }))}>{CLASS_TIME_OPTIONS.map((time) => <option key={time}>{time}</option>)}</select></label></div><footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="primaryDialogAction" type="button" onClick={createClass}>创建班级</button></footer></section></div>}
-      {classDialog === "delete" && <div className="classDialogOverlay"><section className="classDialog dangerDialog"><span className="dangerIcon"><AlertTriangle size={30} /></span><h2>确认删除整个班级？</h2><p>将永久删除“{classInfo.title} · {classInfo.grade}{classInfo.subject}”，并连带删除右侧该班级的 <b>{students.length} 名学生</b>。此操作无法撤销。</p>{classProfiles.length <= 1 && <div className="onlyClassWarning">当前是唯一班级，请先新增其他班级后再删除。</div>}<footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="dangerDialogAction" disabled={classProfiles.length <= 1} type="button" onClick={deleteCurrentClass}>删除班级及学生</button></footer></section></div>}
+      {classDialog === "create" && <div className="classDialogOverlay"><section className="classDialog"><header><div><h2>新增班级</h2><p>班级信息、默认时段和学生名单将绑定保存</p></div><button type="button" onClick={() => setClassDialog("")}><X size={18} /></button></header><div className="classDialogGrid simpleClassDialog"><Field label="班级信息" value={classDraft.info} onChange={(info) => setClassDraft((previous) => ({ ...previous, info }))} /><label className="groupField"><span>默认时段</span><select value={classDraft.defaultTime} onChange={(event) => setClassDraft((previous) => ({ ...previous, defaultTime: event.target.value }))}>{CLASS_TIME_OPTIONS.map((time) => <option key={time}>{time}</option>)}</select></label></div><footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="primaryDialogAction" type="button" onClick={createClass}>创建班级</button></footer></section></div>}
+      {classDialog === "delete" && <div className="classDialogOverlay"><section className="classDialog dangerDialog"><span className="dangerIcon"><AlertTriangle size={30} /></span><h2>确认删除整个班级？</h2><p>将永久删除“{classLabel(classInfo)}”，并连带删除右侧该班级的 <b>{students.length} 名学生</b>。此操作无法撤销。</p>{classProfiles.length <= 1 && <div className="onlyClassWarning">当前是唯一班级，请先新增其他班级后再删除。</div>}<footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="dangerDialogAction" disabled={classProfiles.length <= 1} type="button" onClick={deleteCurrentClass}>删除班级及学生</button></footer></section></div>}
 
       {scoreOpen && currentStudent && (
         <div className="scoreOverlay" role="dialog" aria-modal="true" aria-label="连续录入入门测成绩">
