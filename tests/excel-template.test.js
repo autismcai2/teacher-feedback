@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as XLSX from "xlsx";
 
-import { buildTemplateWorksheetModel, createTemplateExcelBuffer } from "../src/excel-template.js";
+import { buildGroupClassWorksheetModel, buildTemplateWorksheetModel, createGroupClassExcelBuffer, createTemplateExcelBuffer } from "../src/excel-template.js";
 
 const result = {
   studentName: "陈美霖",
@@ -56,4 +56,24 @@ test("generated template grows key-point row for long wrapped text", () => {
   const longModel = buildTemplateWorksheetModel({ ...result, keyPoints: longText }, meta);
 
   assert.ok(longModel.rowHeights[8] > shortModel.rowHeights[8]);
+});
+
+test("group class template grows student rows and keeps four feedback sections", () => {
+  const groupData = {
+    classTitle: "2026年夏季班", grade: "初三", subject: "数学", classDate: "2026-07-13",
+    classTime: "13:10-15:10", lessonNumber: 1, teachingContent: "一元二次方程的概念、配方法求解",
+    difficultPoints: "二次三项式最值问题", absorption: "全班整体掌握良好", homework: "教材P9-P11",
+    students: Array.from({ length: 6 }, (_, index) => ({ name: `学生${index + 1}`, attendance: "出席", quickNote: "课堂专注", score: 20 + index })),
+  };
+  const model = buildGroupClassWorksheetModel(groupData);
+  assert.equal(model.values.A1, "2026年夏季班·初三数学·教学反馈");
+  assert.equal(model.values.A9, "学生6");
+  assert.equal(model.values.A10, "一、本节课教学内容");
+  assert.equal(model.values.I12, "四、作业");
+  assert.ok(model.merges.includes("I4:P11"));
+
+  const workbook = XLSX.read(createGroupClassExcelBuffer(groupData), { type: "array" });
+  const sheet = workbook.Sheets["课堂反馈"];
+  assert.equal(sheet.F4.v, 20);
+  assert.equal(sheet.I13.v, "教材P9-P11");
 });

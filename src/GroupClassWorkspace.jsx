@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, MoreHorizontal, Plus, Search, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, MoreHorizontal, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { createGroupClassExcelBlob } from "./excel-template";
 
 const seedStudents = ["陈志祥", "郑力萌", "蔡致远", "张梦晓", "闫浩宇", "关照"];
 const CLASS_TIME_OPTIONS = ["8:00-10:00", "10:10-12:10", "13:10-15:10", "14:00-16:00", "16:00-18:00", "15:10-17:10", "17:10-19:10", "19:30-21:30", "19:00-21:00"];
-const classProfiles = [
+const CLASS_STORAGE_KEY = "teacher-feedback.group-classes.v1";
+const INITIAL_CLASS_PROFILES = [
   { id: "2026-summer-junior3-math", title: "2026年夏季班", grade: "初三", subject: "数学", defaultTime: "13:10-15:10", students: seedStudents },
 ];
 const commentSeeds = [
@@ -19,8 +21,20 @@ function makeStudent(name, index) {
   return { id: `${Date.now()}-${index}`, name, attendance: "出席", homeworkStatus: "已完成", quickNote: "", score: "" };
 }
 
+function normalizeClassProfiles(profiles) {
+  return profiles.map((profile) => ({ ...profile, students: (profile.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student) }));
+}
+
 export default function GroupClassWorkspace({ onBack }) {
-  const [students, setStudents] = useState(() => seedStudents.map(makeStudent));
+  const [classProfiles, setClassProfiles] = useState(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(CLASS_STORAGE_KEY) || "null");
+      return normalizeClassProfiles(Array.isArray(stored) && stored.length ? stored : INITIAL_CLASS_PROFILES);
+    } catch {
+      return normalizeClassProfiles(INITIAL_CLASS_PROFILES);
+    }
+  });
+  const [students, setStudents] = useState(() => (classProfiles[0].students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
   const [classInfo, setClassInfo] = useState({ classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" });
   const [rawText, setRawText] = useState("");
   const [newStudent, setNewStudent] = useState("");
@@ -36,6 +50,8 @@ export default function GroupClassWorkspace({ onBack }) {
   const [search, setSearch] = useState("");
   const [menuStudent, setMenuStudent] = useState("");
   const [editingStudent, setEditingStudent] = useState("");
+  const [classDialog, setClassDialog] = useState("");
+  const [classDraft, setClassDraft] = useState({ title: "", grade: "", subject: "", defaultTime: "13:10-15:10" });
   const [results, setResults] = useState({ teachingContent: "", difficultPoints: "", absorption: "", homework: "" });
 
   const attendedStudents = useMemo(() => students.filter((student) => student.attendance === "出席"), [students]);
@@ -49,6 +65,10 @@ export default function GroupClassWorkspace({ onBack }) {
     ["homework", "作业"],
   ];
 
+  useEffect(() => {
+    window.localStorage.setItem(CLASS_STORAGE_KEY, JSON.stringify(classProfiles));
+  }, [classProfiles]);
+
   function updateClassInfo(key, value) {
     setClassInfo((previous) => ({ ...previous, [key]: value }));
   }
@@ -57,22 +77,66 @@ export default function GroupClassWorkspace({ onBack }) {
     const profile = classProfiles.find((item) => item.id === classId);
     if (!profile) return;
     setClassInfo((previous) => ({ ...previous, classId, title: profile.title, grade: profile.grade, subject: profile.subject, time: profile.defaultTime, timeMode: profile.defaultTime }));
-    setStudents(profile.students.map(makeStudent));
+    setStudents((profile.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
+  }
+
+  function createClass() {
+    const title = classDraft.title.trim();
+    const grade = classDraft.grade.trim();
+    const subject = classDraft.subject.trim();
+    if (!title || !grade || !subject) return;
+    const profile = { id: `class-${Date.now()}`, title, grade, subject, defaultTime: classDraft.defaultTime, students: [] };
+    setClassProfiles((previous) => [...previous, profile]);
+    setClassInfo((previous) => ({ ...previous, classId: profile.id, title, grade, subject, time: profile.defaultTime, timeMode: profile.defaultTime, lesson: "1" }));
+    setStudents([]);
+    setClassDraft({ title: "", grade: "", subject: "", defaultTime: "13:10-15:10" });
+    setClassDialog("");
+  }
+
+  function deleteCurrentClass() {
+    if (classProfiles.length <= 1) return;
+    const remaining = classProfiles.filter((profile) => profile.id !== classInfo.classId);
+    const next = remaining[0];
+    setClassProfiles(remaining);
+    setClassInfo((previous) => ({ ...previous, classId: next.id, title: next.title, grade: next.grade, subject: next.subject, time: next.defaultTime, timeMode: next.defaultTime, lesson: "1" }));
+    setStudents((next.students || []).map((student, index) => typeof student === "string" ? makeStudent(student, index) : student));
+    setClassDialog("");
+  }
+
+  function downloadGroupExcel() {
+    const blob = createGroupClassExcelBlob({
+      classTitle: classInfo.title, grade: classInfo.grade, subject: classInfo.subject,
+      classDate: classInfo.date, classTime: classInfo.time, lessonNumber: classInfo.lesson,
+      teachingContent: results.teachingContent, difficultPoints: results.difficultPoints,
+      absorption: results.absorption, homework: results.homework, students,
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${classInfo.title}-${classInfo.grade}${classInfo.subject}-第${classInfo.lesson}次-教学反馈.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   function updateStudent(id, patch) {
     setStudents((previous) => previous.map((student) => (student.id === id ? { ...student, ...patch } : student)));
+    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).map((student) => student.id === id ? { ...student, ...patch } : student) } : profile));
   }
 
   function addStudent() {
     const name = newStudent.trim();
     if (!name || students.some((student) => student.name === name)) return;
-    setStudents((previous) => [...previous, makeStudent(name, previous.length)]);
+    const student = makeStudent(name, students.length);
+    setStudents((previous) => [...previous, student]);
+    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: [...(profile.students || []), student] } : profile));
     setNewStudent("");
   }
 
   function removeStudent(id) {
     setStudents((previous) => previous.filter((student) => student.id !== id));
+    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: (profile.students || []).filter((student) => student.id !== id) } : profile));
   }
 
   function openRecorder(index = 0) {
@@ -147,8 +211,8 @@ export default function GroupClassWorkspace({ onBack }) {
       <main className="groupMain">
         <section className="courseWorkspace">
           <header className="courseOverview"><div><span>当前班级</span><h1>{classInfo.title} · {classInfo.grade}{classInfo.subject}</h1><p>{classInfo.date} <span>{classInfo.time}</span></p></div><div className="overviewStats"><b>{students.length}<small>学员</small></b><b>{scoredCount}<small>已完成</small></b><b>第{classInfo.lesson}次<small>当前课次</small></b></div></header>
-          <div className="workspaceSection"><div className="workspaceTitle"><div><h2>本节课信息</h2><p>班级档案已绑定年级、科目与学生名单</p></div></div><div className="leftInfoGrid"><label className="groupField classPicker"><span>班级信息</span><select value={classInfo.classId} onChange={(event) => selectClass(event.target.value)}>{classProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.grade}{profile.subject}</option>)}</select></label><Field label="上课日期" type="date" value={classInfo.date} onChange={(value) => updateClassInfo("date", value)} /><ClassTimeField value={classInfo.time} mode={classInfo.timeMode} onChange={(time, timeMode) => setClassInfo((previous) => ({ ...previous, time, timeMode }))} /><Field label="课次" type="number" value={classInfo.lesson} onChange={(value) => updateClassInfo("lesson", value)} /></div></div>
-          <div className="workspaceSection aiSection"><div className="workspaceTitle"><div><h2>课堂记录与反馈生成</h2><p>记录本节内容、重点和整体课堂情况</p></div><div className="saveState"><Check size={15} />自动保存</div></div><textarea className="classNotes" value={rawText} onChange={(event) => setRawText(event.target.value)} placeholder="例如：本节课学习一元二次方程的概念、开平方法和配方法；重点练习二次三项式最值问题……" /><div className="generateRow"><button className="generateGroup" type="button" onClick={generateDraft}><Sparkles size={18} />生成班级反馈</button><span>AI将结合学生记录生成差异化反馈</span></div><div className="resultTabs">{resultTabs.map(([key, label]) => <button className={activeResult === key ? "active" : ""} type="button" key={key} onClick={() => setActiveResult(key)}>{label}</button>)}</div><textarea className="tabResultEditor" value={results[activeResult]} onChange={(event) => setResults((previous) => ({ ...previous, [activeResult]: event.target.value }))} placeholder="生成后可在这里继续编辑" /></div>
+          <div className="workspaceSection"><div className="workspaceTitle"><div><h2>本节课信息</h2><p>班级档案已绑定年级、科目与学生名单</p></div></div><div className="leftInfoGrid"><div className="classPicker classManager"><label className="groupField"><span>班级信息</span><select value={classInfo.classId} onChange={(event) => selectClass(event.target.value)}>{classProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.grade}{profile.subject}</option>)}</select></label><div><button type="button" onClick={() => setClassDialog("create")}><Plus size={15} />新增</button><button className="classDelete" type="button" onClick={() => setClassDialog("delete")}><Trash2 size={15} />删除</button></div></div><Field label="上课日期" type="date" value={classInfo.date} onChange={(value) => updateClassInfo("date", value)} /><ClassTimeField value={classInfo.time} mode={classInfo.timeMode} onChange={(time, timeMode) => setClassInfo((previous) => ({ ...previous, time, timeMode }))} /><Field label="课次" type="number" value={classInfo.lesson} onChange={(value) => updateClassInfo("lesson", value)} /></div></div>
+          <div className="workspaceSection aiSection"><div className="workspaceTitle"><div><h2>课堂记录与反馈生成</h2><p>记录本节内容、重点和整体课堂情况</p></div><div className="saveState"><Check size={15} />自动保存</div></div><textarea className="classNotes" value={rawText} onChange={(event) => setRawText(event.target.value)} placeholder="例如：本节课学习一元二次方程的概念、开平方法和配方法；重点练习二次三项式最值问题……" /><div className="generateRow"><button className="generateGroup" type="button" onClick={generateDraft}><Sparkles size={18} />生成班级反馈</button><button className="excelDownload" type="button" onClick={downloadGroupExcel}><Download size={17} />下载Excel</button></div><div className="resultTabs">{resultTabs.map(([key, label]) => <button className={activeResult === key ? "active" : ""} type="button" key={key} onClick={() => setActiveResult(key)}>{label}</button>)}</div><textarea className="tabResultEditor" value={results[activeResult]} onChange={(event) => setResults((previous) => ({ ...previous, [activeResult]: event.target.value }))} placeholder="生成后可在这里继续编辑" /></div>
         </section>
 
         <section className="studentWorkspace">
@@ -161,6 +225,9 @@ export default function GroupClassWorkspace({ onBack }) {
           <footer className="addStudentRow"><span>{students.length} 名学生</span><div><input value={newStudent} onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} placeholder="输入新学员姓名" /><button type="button" onClick={addStudent}><Plus size={15} />添加</button></div></footer>
         </section>
       </main>
+
+      {classDialog === "create" && <div className="classDialogOverlay"><section className="classDialog"><header><div><h2>新增班级</h2><p>班级、年级、科目、默认时间和学生名单将绑定保存</p></div><button type="button" onClick={() => setClassDialog("")}><X size={18} /></button></header><div className="classDialogGrid"><Field label="班级名称" value={classDraft.title} onChange={(title) => setClassDraft((previous) => ({ ...previous, title }))} /><Field label="年级" value={classDraft.grade} onChange={(grade) => setClassDraft((previous) => ({ ...previous, grade }))} /><Field label="科目" value={classDraft.subject} onChange={(subject) => setClassDraft((previous) => ({ ...previous, subject }))} /><label className="groupField"><span>默认上课时间</span><select value={classDraft.defaultTime} onChange={(event) => setClassDraft((previous) => ({ ...previous, defaultTime: event.target.value }))}>{CLASS_TIME_OPTIONS.map((time) => <option key={time}>{time}</option>)}</select></label></div><footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="primaryDialogAction" type="button" onClick={createClass}>创建班级</button></footer></section></div>}
+      {classDialog === "delete" && <div className="classDialogOverlay"><section className="classDialog dangerDialog"><span className="dangerIcon"><AlertTriangle size={30} /></span><h2>确认删除整个班级？</h2><p>将永久删除“{classInfo.title} · {classInfo.grade}{classInfo.subject}”，并连带删除右侧该班级的 <b>{students.length} 名学生</b>。此操作无法撤销。</p>{classProfiles.length <= 1 && <div className="onlyClassWarning">当前是唯一班级，请先新增其他班级后再删除。</div>}<footer><button type="button" onClick={() => setClassDialog("")}>取消</button><button className="dangerDialogAction" disabled={classProfiles.length <= 1} type="button" onClick={deleteCurrentClass}>删除班级及学生</button></footer></section></div>}
 
       {scoreOpen && currentStudent && (
         <div className="scoreOverlay" role="dialog" aria-modal="true" aria-label="连续录入入门测成绩">
@@ -204,6 +271,7 @@ const groupCss = `
   .groupField select{width:100%;height:38px;border:1px solid var(--line);border-radius:8px;background:#fbfdfe;color:var(--ink);padding:8px 10px;outline:none}.groupField input[readonly]{background:#f5f8f9;color:#667f8a;cursor:default}.classTimeField{position:relative}.classTimeField input{position:absolute;top:63px;z-index:6;background:#fff;box-shadow:0 8px 20px rgba(35,67,82,.14)}.studentTable th:nth-child(1){width:48px}.studentTable th:nth-child(2){width:105px}.studentTable th:nth-child(3){width:166px}.studentTable th:nth-child(4){width:192px}.studentTable th:nth-child(6){width:82px}.studentTable th:nth-child(7){width:52px}.studentName{display:block}.studentName input{width:82px}.miniSegment{display:inline-flex;width:max-content;padding:2px;gap:2px;border:0;background:#f3f5f6}.miniSegment button{font-weight:700}.miniSegment button:not(.active){color:#7c8d95;background:transparent}.miniSegment.attendance .state-0.active{color:#246c8e;background:#DCEFF8}.miniSegment.homework .state-0.active{color:#247080;background:#DDF2F4}.miniSegment .state-1.active{color:#8b5c10;background:#FFF3D6}.miniSegment .state-2.active{color:#963b45;background:#FDEBEC}.scoreCell{min-width:64px;height:31px;border-color:#c9dce3!important;border-radius:7px!important;background:#f7fafb!important;color:#568090!important;padding:4px 8px!important;font-size:11px;white-space:nowrap}.scoreCell:hover{border-color:#7fb9ca!important;background:#edf7fa!important;color:#2c8298!important}.scoreCell.filled{border-color:#9ccbd6!important;background:#e9f6f8!important;color:#277d90!important}.addStudentRow button{white-space:nowrap;flex-shrink:0}.typeScore{min-height:190px}.typeScore p{margin-top:18px}.typeScore em{color:#b3434c;font-size:12px;font-style:normal}.scoreComplete{display:grid;justify-items:center;padding:46px 30px}.scoreComplete>span{width:58px;height:58px;display:grid;place-items:center;border-radius:50%;background:#e2f6f0;color:#27805f}.scoreComplete h2{margin:17px 0 5px}.scoreComplete p{margin:0;color:#7a929d}.scoreComplete button{margin-top:24px;border:0;border-radius:9px;background:#35aabc;color:#fff;padding:11px 18px;font-weight:800;cursor:pointer}.savedToast{position:absolute;left:50%;bottom:24px;display:flex;align-items:center;gap:7px;transform:translateX(-50%);border-radius:9px;background:#244f5e;color:#fff;padding:9px 13px;font-size:12px;box-shadow:0 8px 24px rgba(20,50,65,.22);pointer-events:none}.scoreButtons button{transition:none}
   /* Two-column classroom workspace */
   .groupShell{--ink:#18343E;--muted:#647C86;--line:#DCE7E8;background:#F3F7F8}.groupTopbar{border-color:#DCE7E8}.groupBrand>span,.scoreLaunch,.generateGroup{background:#3A9189!important}.groupMain{width:min(1680px,calc(100% - 48px));height:calc(100vh - 58px);display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);gap:20px;padding:18px 0 22px;overflow:hidden}.courseWorkspace,.studentWorkspace{height:100%;min-height:0;border:1px solid #DCE7E8;border-radius:14px;background:#fff;box-shadow:0 6px 20px rgba(36,67,75,.06)}.courseWorkspace{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#C5D5D8 transparent}.courseOverview{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #E5EDEE}.courseOverview>div>span{color:#3A9189;font-size:11px;font-weight:800}.courseOverview h1{margin:5px 0 4px;color:#18343E;font-size:24px}.courseOverview p{margin:0;color:#647C86;font-size:12px}.overviewStats{display:flex;gap:8px}.overviewStats b{min-width:66px;padding:9px 8px;border-radius:8px;background:#F8FBFB;color:#18343E;text-align:center;font-size:15px}.overviewStats small{display:block;margin-top:3px;color:#8799A0;font-size:10px;font-weight:600}.workspaceSection{padding:18px 22px;border-bottom:1px solid #E5EDEE}.workspaceSection:last-child{border-bottom:0}.workspaceTitle{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.workspaceTitle h2,.studentHeading h2{margin:0;font-size:17px}.workspaceTitle p,.studentHeading p{margin:3px 0 0;color:#8799A0;font-size:11px}.leftInfoGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.classPicker{grid-column:1/-1}.classNotes{min-height:120px;background:#FBFDFD}.generateRow .generateGroup{min-width:164px}.resultTabs{overflow-x:auto}.resultTabs button{flex:0 0 auto;padding:9px 10px;font-size:12px}.resultTabs button.active{border-color:#3A9189;color:#2E766F}.tabResultEditor{min-height:126px;background:#F8FBFB}.studentWorkspace{display:flex;flex-direction:column;overflow:hidden}.studentWorkspaceHeader{flex:0 0 auto;padding:18px 20px 14px;border-bottom:1px solid #DCE7E8}.studentHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}.studentActions{margin-top:12px}.studentActions label{flex:1;background:#FBFDFD}.studentActions label input{width:100%}.studentActions .scoreLaunch,.secondaryAdd{white-space:nowrap}.completion{margin-left:auto!important}.completion i span{background:#3A9189}.studentCardList{flex:1;min-height:0;overflow-y:auto;padding:12px;scrollbar-width:thin;scrollbar-color:#C5D5D8 transparent}.studentCardList::-webkit-scrollbar,.courseWorkspace::-webkit-scrollbar{width:6px}.studentCardList::-webkit-scrollbar-thumb,.courseWorkspace::-webkit-scrollbar-thumb{border-radius:99px;background:#C5D5D8}.studentRecordCard{position:relative;min-height:114px;margin-bottom:10px;padding:13px 15px;border:1px solid #DCE7E8;border-radius:10px;background:#fff;transition:150ms ease}.studentRecordCard:nth-child(even){background:#F8FBFB}.studentRecordCard:hover{background:#F1F8F7}.studentRecordCard.editing{border-color:#9BCBC5;background:#EDF7F5;box-shadow:inset 3px 0 #3A9189}.studentCardTop{display:flex;align-items:center;gap:10px;min-height:30px}.studentIndex{width:28px;color:#8799A0;font-size:11px}.studentFullName{width:88px;border:0;background:transparent;color:#18343E;font-size:14px;font-weight:700;outline:none}.studentCardTop .moreCell{margin-left:auto}.studentCardBottom{display:grid;grid-template-columns:minmax(0,1fr) 88px;align-items:center;gap:12px;margin-top:11px}.studentCardBottom .quickInput{height:36px;background:#FBFDFD}.studentCardBottom .scoreCell{width:88px}.studentDone{position:absolute;right:10px;top:7px;color:#3A9189}.studentWorkspace>.addStudentRow{flex:0 0 54px;padding:0 14px;border-top:1px solid #DCE7E8}.studentWorkspace>.addStudentRow input{width:180px}.miniSegment.attendance .state-0.active,.miniSegment.homework .state-0.active{border:1px solid #B9DDD3;color:#287A68;background:#E8F4F0}.miniSegment .state-1.active{border:1px solid #DFCFB4;color:#8B6B3F;background:#F6F0E6}.miniSegment .state-2.active{border:1px solid #E7C2C7;color:#A85861;background:#F8EBED}.miniSegment button:not(.active){border:1px solid transparent;color:#7C8D95;background:transparent}.groupField input:focus,.groupField select:focus,.quickInput:focus,.classNotes:focus,.tabResultEditor:focus{border-color:#86BEB8;box-shadow:0 0 0 2px rgba(134,190,184,.16)}
+  .classManager{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}.classManager>div{display:flex;gap:6px}.classManager>div button,.excelDownload{height:38px;display:flex;align-items:center;gap:5px;border:1px solid #C8DADA;border-radius:8px;background:#fff;color:#2E766F;padding:0 10px;font-weight:700;white-space:nowrap;cursor:pointer}.classManager>div .classDelete{border-color:#E5CDD0;color:#A85861}.excelDownload{height:41px;border-color:#9BCBC5}.classDialogOverlay{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:20px;background:rgba(24,52,62,.5);backdrop-filter:blur(5px)}.classDialog{width:min(540px,100%);padding:22px;border-radius:14px;background:#fff;box-shadow:0 22px 60px rgba(24,52,62,.22)}.classDialog>header{display:flex;align-items:flex-start;justify-content:space-between}.classDialog h2{margin:0;color:#18343E;font-size:20px}.classDialog p{margin:6px 0 0;color:#647C86;line-height:1.6}.classDialog>header>button{border:0;background:transparent;color:#8799A0;cursor:pointer}.classDialogGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}.classDialog footer{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}.classDialog footer button{height:38px;border:1px solid #DCE7E8;border-radius:8px;background:#fff;color:#647C86;padding:0 15px;font-weight:700;cursor:pointer}.classDialog footer .primaryDialogAction{border-color:#3A9189;background:#3A9189;color:#fff}.dangerDialog{text-align:center}.dangerIcon{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 15px;border-radius:50%;background:#F8EBED;color:#A85861}.dangerDialog p{margin-top:10px}.onlyClassWarning{margin-top:14px;border-radius:8px;background:#F6F0E6;color:#8B6B3F;padding:10px;font-size:12px}.classDialog footer .dangerDialogAction{border-color:#A85861;background:#A85861;color:#fff}.classDialog footer .dangerDialogAction:disabled{opacity:.4;cursor:not-allowed}
   @media(max-width:1100px){.groupMain{height:auto;grid-template-columns:1fr;overflow:visible}.courseWorkspace{max-height:none}.studentWorkspace{height:720px}.studentCardTop{flex-wrap:wrap}}
   @media(max-width:900px){.studentActions{width:100%;flex-wrap:wrap}.groupMain{width:min(100% - 20px,1200px)}.overviewStats{display:none}}
 `;
