@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Plus, Sparkles, Trash2 } from "lucide-react";
 import { createTemplateExcelBlob } from "./excel-template";
+import GroupClassWorkspace from "./GroupClassWorkspace";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
@@ -46,24 +47,12 @@ const fields = [
   ["parentFeedback", "家长反馈话术"],
 ];
 
-function getTodayLabel() {
-  const today = new Date();
-  return `${today.getMonth() + 1}月${today.getDate()}日`;
-}
-
 function getTodayInputValue() {
   const today = new Date();
   const year = today.getFullYear();
   const month = String(today.getMonth() + 1).padStart(2, "0");
   const day = String(today.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function formatDateLabel(value) {
-  if (!value) return getTodayLabel();
-
-  const [, month, day] = value.split("-");
-  return `${Number(month)}月${Number(day)}日`;
 }
 
 function safeFilePart(value, fallback) {
@@ -180,7 +169,7 @@ async function readJsonResponse(response, fallbackMessage) {
   }
 }
 
-export default function App() {
+function OneToOneWorkspace() {
   const [rawText, setRawText] = useState("");
   const [style, setStyle] = useState("温和鼓励");
   const [loading, setLoading] = useState(false);
@@ -635,6 +624,79 @@ export default function App() {
     </div>
   );
 }
+
+export default function App() {
+  const [workspace, setWorkspace] = useState("home");
+
+  if (workspace === "one-to-one") {
+    return (
+      <>
+        <button className="workspaceBack" type="button" onClick={() => setWorkspace("home")}>
+          ← 返回课程类型
+        </button>
+        <OneToOneWorkspace />
+      </>
+    );
+  }
+
+  if (workspace === "group-class") {
+    return <GroupClassWorkspace onBack={() => setWorkspace("home")} />;
+  }
+
+  return (
+    <main className="courseGateway">
+      <div className="gatewayGlow gatewayGlowOne" />
+      <div className="gatewayGlow gatewayGlowTwo" />
+      <section className="gatewayContent">
+        <span className="gatewayEyebrow">TEACHING FEEDBACK STUDIO</span>
+        <h1>今天要整理哪一种课程？</h1>
+        <p>选择课程类型，进入对应的反馈工作台。</p>
+        <div className="courseChoices">
+          <button className="courseChoice privateChoice" type="button" onClick={() => setWorkspace("one-to-one")}>
+            <span className="choiceIcon">1:1</span>
+            <span className="choiceCopy">
+              <b>一对一课程反馈</b>
+              <small>单个学生 · 个性化反馈 · 家长话术</small>
+            </span>
+            <span className="choiceArrow">→</span>
+          </button>
+          <button className="courseChoice groupChoice" type="button" onClick={() => setWorkspace("group-class")}>
+            <span className="choiceIcon">班</span>
+            <span className="choiceCopy">
+              <b>班课反馈</b>
+              <small>整班记录 · 连续录分 · 批量生成</small>
+            </span>
+            <span className="choiceArrow">→</span>
+          </button>
+        </div>
+      </section>
+      <style>{gatewayCss}</style>
+    </main>
+  );
+}
+
+const gatewayCss = `
+  .workspaceBack { position: fixed; left: 18px; bottom: 18px; z-index: 30; border: 1px solid #cfd9dd; border-radius: 999px; background: rgba(255,255,255,.94); color: #405166; padding: 10px 15px; font-weight: 800; box-shadow: 0 8px 24px rgba(31,55,70,.12); cursor: pointer; }
+  .courseGateway { --baby:#dff3ff; --maldives:#48bfd0; --morandi:#799caf; min-height:100vh; display:grid; place-items:center; overflow:hidden; position:relative; padding:28px; background:linear-gradient(145deg,#f8fcfe 0%,#e8f5fa 47%,#dceff5 100%); color:#284757; }
+  .gatewayContent { position:relative; z-index:2; width:min(920px,100%); text-align:center; }
+  .gatewayEyebrow { display:inline-block; color:#548398; font-size:12px; font-weight:900; letter-spacing:.2em; }
+  .gatewayContent h1 { margin:16px 0 8px; font-size:clamp(32px,5vw,54px); letter-spacing:-.04em; }
+  .gatewayContent>p { margin:0 0 34px; color:#688493; font-size:17px; }
+  .courseChoices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+  .courseChoice { min-height:190px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; border:1px solid rgba(80,130,150,.18); border-radius:28px; padding:28px; text-align:left; color:#284757; cursor:pointer; box-shadow:0 18px 50px rgba(65,108,127,.12); transition:transform .2s,box-shadow .2s; }
+  .courseChoice:hover { transform:translateY(-5px); box-shadow:0 24px 60px rgba(65,108,127,.19); }
+  .privateChoice { background:rgba(255,255,255,.86); }
+  .groupChoice { background:linear-gradient(145deg,#dff3ff,#bfeaf1); }
+  .choiceIcon { width:64px; height:64px; display:grid; place-items:center; border-radius:20px; background:#fff; color:#3aaabb; font-size:22px; font-weight:900; box-shadow:0 8px 24px rgba(70,150,170,.12); }
+  .choiceCopy { display:grid; gap:8px; }
+  .choiceCopy b { font-size:22px; }
+  .choiceCopy small { color:#688493; font-size:14px; line-height:1.6; }
+  .choiceArrow { font-size:27px; color:#5594a6; }
+  .gatewayGlow { position:absolute; border-radius:50%; filter:blur(3px); opacity:.65; }
+  .gatewayGlowOne { width:360px; height:360px; left:-120px; top:-120px; background:#bdefff; }
+  .gatewayGlowTwo { width:440px; height:440px; right:-180px; bottom:-200px; background:#a8d8df; }
+  @media(max-width:720px){.courseChoices{grid-template-columns:1fr}.courseChoice{min-height:145px;padding:22px}.gatewayContent{text-align:left}.gatewayContent>p{margin-bottom:24px}.choiceIcon{width:54px;height:54px}.workspaceBack{bottom:10px;left:10px}}
+`;
 
 function TextInput({ label, note, value, onChange, prefix, suffix, ...props }) {
   return (
