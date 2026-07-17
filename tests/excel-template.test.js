@@ -76,5 +76,5 @@ test("group class template grows student rows and keeps four feedback sections",
   const sheet = workbook.Sheets["课堂反馈"];
   assert.equal(sheet.E4.v, 20);
   assert.equal(sheet.G13.v, "教材P9-P11");
-  assert.equal(sheet["!ref"], "A1:P13");
+  assert.equal(sheet["!ref"], "A1:AZ60");
 });
