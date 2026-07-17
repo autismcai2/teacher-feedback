@@ -69,11 +69,11 @@ test("group class template grows student rows and keeps four feedback sections",
   assert.equal(model.values.A1, "2026年夏季班·初三数学·教学反馈");
   assert.equal(model.values.A9, "学生6");
   assert.equal(model.values.A10, "一、本节课教学内容");
-  assert.equal(model.values.I12, "四、作业");
-  assert.ok(model.merges.includes("I4:P11"));
+  assert.equal(model.values.G12, "四、作业");
+  assert.ok(model.merges.includes("G4:P11"));
 
   const workbook = XLSX.read(createGroupClassExcelBuffer(groupData), { type: "array" });
   const sheet = workbook.Sheets["课堂反馈"];
-  assert.equal(sheet.F4.v, 20);
-  assert.equal(sheet.I13.v, "教材P9-P11");
+  assert.equal(sheet.E4.v, 20);
+  assert.equal(sheet.G13.v, "教材P9-P11");
 });

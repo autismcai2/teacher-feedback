@@ -184,15 +184,18 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   function generateDraft() {
-    setStudents((previous) => previous.map((student, index) => ({
+    const generatedStudents = students.map((student, index) => ({
       ...student,
       quickNote: student.quickNote.trim() || commentSeeds[index % commentSeeds.length],
-    })));
+    }));
+    setStudents(generatedStudents);
+    setClassProfiles((previous) => previous.map((profile) => profile.id === classInfo.classId ? { ...profile, students: generatedStudents } : profile));
+    const studentSummary = generatedStudents.map((student) => `${student.name}${student.quickNote}，入门测${student.score === "" ? "暂未录入" : `${student.score}分`}`).join("；");
     setResults({
-      teachingContent: rawText.trim() || "请填写课堂记录，AI生成后将在这里呈现本节课的教学内容。",
-      difficultPoints: "围绕本节核心知识梳理方法，并结合典型题型辨析易错点。",
-      absorption: `本节课共${attendedStudents.length}名学生出席，整体能够跟进课堂节奏。后续需结合入门测结果继续进行分层巩固。`,
-      homework: "完成教材对应练习，订正课堂错题并整理本节知识要点。",
+      teachingContent: rawText.trim() || "一元二次方程的概念、开平方法和配方法求解。",
+      difficultPoints: "二次三项式的最值问题，以及不同情形下的分类讨论。",
+      absorption: `1.本节课主要学习一元二次方程的概念、开平方法、配方法等。\n2.分题型归纳解题方法，重点练习代入求值、方程与实际问题的抽象联系、不同情形的分类讨论及二次三项式的最值问题。\n3.本节课共${attendedStudents.length}名学生出席，整体专注度较高，听课认真，能够积极配合课堂提问与练习。\n4.${studentSummary}。后续将结合各自错题继续进行分层巩固。`,
+      homework: "教材P9-P11，订正课堂错题并整理本节知识要点。",
     });
   }
 
