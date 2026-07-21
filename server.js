@@ -18,6 +18,9 @@ const studentsFile = path.join(dataDir, "students.json");
 const lessonsFile = path.join(dataDir, "lessons.json");
 const groupClassesFile = path.join(dataDir, "group-classes.json");
 const groupLessonsFile = path.join(dataDir, "group-lessons.json");
+const presetGroupClassOwner = "陈嘉仪";
+const legacyGroupClassOwner = "陈思桦";
+const presetGroupClassKeys = new Set(["2026年夏季班初三数学", "2026年暑期班初一数学"]);
 const defaultTeacherName = "陈思桦";
 const studentTeacherColumn = "teacher_name";
 const studentLessonColumn = "last_lesson_number";
@@ -235,6 +238,43 @@ function normalizeGroupClass(value) {
     lastLessonNumber: normalizeLessonNumber(value?.lastLessonNumber ?? value?.last_lesson_number),
     students: (Array.isArray(value?.students) ? value.students : []).map((item) => String(item?.name || item).trim()).filter(Boolean),
   };
+}
+
+function groupClassKey(value) {
+  return String(value || "").replace(/[\s·•・]/g, "");
+}
+
+async function migratePresetGroupClasses() {
+  if (useSupabase) {
+    const source = await supabaseRequest(`/group_classes?teacher_name=eq.${encodeURIComponent(legacyGroupClassOwner)}&select=id,class_info`);
+    const destination = await supabaseRequest(`/group_classes?teacher_name=eq.${encodeURIComponent(presetGroupClassOwner)}&select=class_info`);
+    const destinationKeys = new Set(destination.map((item) => groupClassKey(item.class_info)));
+    const movable = source.filter((item) => presetGroupClassKeys.has(groupClassKey(item.class_info)) && !destinationKeys.has(groupClassKey(item.class_info)));
+    for (const item of movable) {
+      await supabaseRequest(`/group_classes?id=eq.${encodeURIComponent(item.id)}`, { method: "PATCH", body: JSON.stringify({ teacher_name: presetGroupClassOwner }) });
+      await supabaseRequest(`/group_lesson_records?class_id=eq.${encodeURIComponent(item.id)}`, { method: "PATCH", body: JSON.stringify({ teacher_name: presetGroupClassOwner }) });
+    }
+    return movable.length;
+  }
+  await ensureJsonStore(groupClassesFile);
+  const classes = JSON.parse(await fs.readFile(groupClassesFile, "utf8") || "[]");
+  const destinationKeys = new Set(classes.filter((item) => normalizeTeacherName(item.teacherName) === presetGroupClassOwner).map((item) => groupClassKey(item.classInfo)));
+  const movedIds = [];
+  const nextClasses = classes.map((item) => {
+    const key = groupClassKey(item.classInfo);
+    if (normalizeTeacherName(item.teacherName) === legacyGroupClassOwner && presetGroupClassKeys.has(key) && !destinationKeys.has(key)) {
+      movedIds.push(item.id);
+      destinationKeys.add(key);
+      return { ...item, teacherName: presetGroupClassOwner };
+    }
+    return item;
+  });
+  await fs.writeFile(groupClassesFile, `${JSON.stringify(nextClasses, null, 2)}\n`, "utf8");
+  await ensureJsonStore(groupLessonsFile);
+  const lessons = JSON.parse(await fs.readFile(groupLessonsFile, "utf8") || "[]");
+  const nextLessons = lessons.map((item) => movedIds.includes(item.classId) ? { ...item, teacherName: presetGroupClassOwner } : item);
+  await fs.writeFile(groupLessonsFile, `${JSON.stringify(nextLessons, null, 2)}\n`, "utf8");
+  return movedIds.length;
 }
 
 async function readGroupClasses(teacherName) {
@@ -747,6 +787,15 @@ app.get("/api/group-classes", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: publicStorageError("读取班级", error) });
+  }
+});
+
+app.post("/api/group-classes/migrate-presets", async (_req, res) => {
+  try {
+    res.json({ ok: true, moved: await migratePresetGroupClasses() });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: publicStorageError("迁移预置班级", error) });
   }
 });
 

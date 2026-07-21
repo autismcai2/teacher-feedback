@@ -41,6 +41,10 @@ test("class-course API persists roster, saves one whole lesson, and deletes the 
   t.after(() => server.stop());
   const teacherName = `班课测试老师-${Date.now()}`;
 
+  const migrationResponse = await fetch(`http://127.0.0.1:${server.port}/api/group-classes/migrate-presets`, { method: "POST" });
+  assert.equal(migrationResponse.status, 200);
+  assert.equal((await migrationResponse.json()).ok, true);
+
   const createdResponse = await fetch(`http://127.0.0.1:${server.port}/api/group-classes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
