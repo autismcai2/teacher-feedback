@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, MoreHorizontal, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { createGroupClassExcelBlob } from "./excel-template";
 
 const seedStudents = ["陈志祥", "郑力萌", "蔡致远", "张梦晓", "闫浩宇", "关照"];
+const juniorOneStudents = ["罗然", "高茜媛", "朱可馨", "杨紫依", "谢光曦", "韩永旭", "林浩轩", "李静怡", "胡欣怡", "陈伟铭", "陈一蔓", "陈诚霖", "张锦瑶", "张锦睿", "翁健雄"];
 const CLASS_TIME_OPTIONS = ["8:00-10:00", "10:10-12:10", "13:10-15:10", "14:00-16:00", "16:00-18:00", "15:10-17:10", "17:10-19:10", "19:30-21:30", "19:00-21:00"];
 const CLASS_STORAGE_KEY = "teacher-feedback.group-classes.v1";
 const GROUP_CLASSES_API = "/api/group-classes";
@@ -11,6 +12,7 @@ const GROUP_FEEDBACK_API = "/api/generate-group-feedback";
 const GROUP_TEACHER_NAME = "陈思桦";
 const INITIAL_CLASS_PROFILES = [
   { id: "2026-summer-junior3-math", title: "2026年夏季班", grade: "初三", subject: "数学", defaultTime: "13:10-15:10", students: seedStudents },
+  { id: "2026-summer-junior1-math", title: "2026年暑期班", grade: "初一", subject: "数学", defaultTime: "10:10-12:10", students: juniorOneStudents },
 ];
 const commentSeeds = [
   "课堂专注，认真听讲",
@@ -33,6 +35,10 @@ function classLabel(profile) {
   return [profile.title, `${profile.grade || ""}${profile.subject || ""}`].filter(Boolean).join(" · ");
 }
 
+function classIdentity(profile) {
+  return classLabel(profile).replace(/[\s·•・]/g, "");
+}
+
 export default function GroupClassWorkspace({ onBack }) {
   const [classProfiles, setClassProfiles] = useState(() => {
     try {
@@ -42,7 +48,6 @@ export default function GroupClassWorkspace({ onBack }) {
       return normalizeClassProfiles(INITIAL_CLASS_PROFILES);
     }
   });
-  const initialClassProfile = useRef(classProfiles[0]);
   const [students, setStudents] = useState(() => (classProfiles[0].students || []).map(makeStudent));
   const [classInfo, setClassInfo] = useState({ classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" });
   const [rawText, setRawText] = useState("");
@@ -85,13 +90,14 @@ export default function GroupClassWorkspace({ onBack }) {
         const response = await fetch(`${GROUP_CLASSES_API}?teacherName=${encodeURIComponent(GROUP_TEACHER_NAME)}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "读取班级失败");
-        let remoteClasses = data.classes || [];
-        if (!remoteClasses.length) {
-          const initial = initialClassProfile.current;
+        const remoteClasses = [...(data.classes || [])];
+        const remoteIdentities = new Set(remoteClasses.map((item) => classIdentity({ title: item.classInfo })));
+        for (const initial of INITIAL_CLASS_PROFILES.filter((profile) => !remoteIdentities.has(classIdentity(profile)))) {
           const createResponse = await fetch(GROUP_CLASSES_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherName: GROUP_TEACHER_NAME, classInfo: classLabel(initial), defaultTime: initial.defaultTime, students: initial.students }) });
           const created = await createResponse.json();
           if (!createResponse.ok) throw new Error(created.error || "初始化班级失败");
-          remoteClasses = [created.class];
+          remoteClasses.push(created.class);
+          remoteIdentities.add(classIdentity({ title: created.class.classInfo }));
         }
         const profiles = normalizeClassProfiles(remoteClasses.map((item) => ({ id: item.id, teacherName: item.teacherName, title: item.classInfo, grade: "", subject: "", defaultTime: item.defaultTime, lastLessonNumber: item.lastLessonNumber, students: item.students })));
         const first = profiles[0];
