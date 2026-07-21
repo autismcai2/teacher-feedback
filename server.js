@@ -814,7 +814,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
       difficultPoints: String(parsed.difficultPoints || "").trim(),
       absorption: String(parsed.absorption || "").trim(),
       homework: String(parsed.homework || "").trim(),
-      students: students.map((item) => ({ name: item.name, performanceComment: Array.from(comments.get(String(item.name)) || String(item.quickNote || "").trim()).slice(0, 12).join("") })),
+      students: students.map((item) => ({ name: item.name, performanceComment: comments.get(String(item.name)) || String(item.quickNote || "").trim() })),
     });
   } catch (error) {
     console.error(error);

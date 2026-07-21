@@ -529,7 +529,7 @@ export function buildGroupClassWorksheetModel(data) {
     const row = index + 4;
     values[`A${row}`] = student.name || "";
     values[`B${row}`] = student.attendance === "出席" ? "√" : student.attendance || "";
-    values[`C${row}`] = Array.from(cellText(student.quickNote)).slice(0, 12).join("");
+    values[`C${row}`] = cellText(student.quickNote);
     values[`E${row}`] = student.score ?? "";
   });
 
