@@ -62,8 +62,9 @@ function emptyClassInfo() {
 export default function GroupClassWorkspace({ onBack }) {
   const [teacherName, setTeacherName] = useState(DEFAULT_GROUP_TEACHER);
   const [classProfiles, setClassProfiles] = useState(() => readStoredClasses(DEFAULT_GROUP_TEACHER));
-  const [students, setStudents] = useState(() => (classProfiles[0].students || []).map(makeStudent));
-  const [classInfo, setClassInfo] = useState({ classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" });
+  const [students, setStudents] = useState(() => (classProfiles[0]?.students || []).map(makeStudent));
+  const [classInfo, setClassInfo] = useState(() => classProfiles[0] ? { classId: classProfiles[0].id, title: classProfiles[0].title, grade: classProfiles[0].grade, subject: classProfiles[0].subject, date: new Date().toISOString().slice(0, 10), time: classProfiles[0].defaultTime, timeMode: classProfiles[0].defaultTime, lesson: "1" } : emptyClassInfo());
+  const [teacherMenuOpen, setTeacherMenuOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   const [newStudent, setNewStudent] = useState("");
   const [scoreOpen, setScoreOpen] = useState(false);
@@ -146,6 +147,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }, [showProfiles, teacherName]);
 
   function selectTeacher(nextTeacher) {
+    setTeacherMenuOpen(false);
     setTeacherName(nextTeacher);
     showProfiles(readStoredClasses(nextTeacher));
     setRawText("");
@@ -354,7 +356,7 @@ export default function GroupClassWorkspace({ onBack }) {
       <header className="groupTopbar">
         <button className="backButton" type="button" onClick={onBack}><ArrowLeft size={18} />课程类型</button>
         <div className="groupBrand"><span>班</span><div><b>班级反馈工作台</b><small>CLASS FEEDBACK</small></div></div>
-        <label className="teacherSwitch"><span>{teacherName.slice(0, 1)}</span><select aria-label="切换班课老师" value={teacherName} onChange={(event) => selectTeacher(event.target.value)}>{GROUP_TEACHERS.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}</select><ChevronDown size={15} /></label>
+        <div className="teacherPicker"><button className="teacherSwitch" type="button" aria-haspopup="menu" aria-expanded={teacherMenuOpen} onClick={() => setTeacherMenuOpen((open) => !open)}><span>{teacherName.slice(0, 1)}</span><b>{teacherName}</b><ChevronDown className={teacherMenuOpen ? "open" : ""} size={15} /></button>{teacherMenuOpen && <div className="teacherMenu" role="menu">{GROUP_TEACHERS.map((teacher) => <button className={teacher === teacherName ? "active" : ""} role="menuitem" type="button" key={teacher} onClick={() => selectTeacher(teacher)}><span>{teacher.slice(0, 1)}</span><div><b>{teacher}</b><small>{teacher === teacherName ? "当前老师" : "切换老师"}</small></div>{teacher === teacherName && <Check size={15} />}</button>)}</div>}</div>
       </header>
 
       <main className="groupMain">
@@ -366,7 +368,7 @@ export default function GroupClassWorkspace({ onBack }) {
 
         <section className="studentWorkspace">
           <header className="studentWorkspaceHeader"><div className="studentHeading"><div><h2>学生课堂记录</h2><p>记录可留空，AI将自动补充差异化点评</p></div><div className="completion"><b>已完成 {scoredCount}/{students.length}</b><i><span style={{ width: `${students.length ? (scoredCount / students.length) * 100 : 0}%` }} /></i></div></div><div className="studentActions"><label><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索学生" /></label><button className="scoreLaunch" type="button" disabled={!students.length} onClick={() => openRecorder()}><ClipboardCheck size={16} />快速录分</button><button className="secondaryAdd" type="button" onClick={() => document.querySelector('.addStudentRow input')?.focus()}><Plus size={16} />添加学生</button></div></header>
-          <div className="studentCardList">{filteredStudents.map((student) => { const index = students.findIndex((item) => item.id === student.id); return <article className={`studentRecordCard ${editingStudent === student.id ? "editing" : ""}`} key={student.id}>
+          <div className="studentCardList">{!classInfo.classId ? <div className="emptyTeacherState"><span><Plus size={23} /></span><h3>{teacherName}还没有班级</h3><p>新增班级后，学生名单和课堂记录会单独归属于这位老师。</p><button type="button" onClick={() => setClassDialog("create")}><Plus size={15} />新增班级</button></div> : filteredStudents.map((student) => { const index = students.findIndex((item) => item.id === student.id); return <article className={`studentRecordCard ${editingStudent === student.id ? "editing" : ""}`} key={student.id}>
             {student.score !== "" && <span className="studentDone"><Check size={12} /></span>}
             <div className="studentCardTop"><span className="studentIndex">{String(index + 1).padStart(2, "0")}</span><input className="studentFullName" value={student.name} onFocus={() => setEditingStudent(student.id)} onBlur={() => setEditingStudent("")} onChange={(event) => updateStudent(student.id, { name: event.target.value })} /><MiniSegment kind="attendance" value={student.attendance} options={["出席", "请假", "缺席"]} onChange={(attendance) => updateStudent(student.id, { attendance })} /><MiniSegment kind="homework" value={student.homeworkStatus} options={["已完成", "部分", "未完成"]} onChange={(homeworkStatus) => updateStudent(student.id, { homeworkStatus })} /><div className="moreCell"><button className="moreButton" type="button" onClick={() => setMenuStudent(menuStudent === student.id ? "" : student.id)}><MoreHorizontal size={18} /></button>{menuStudent === student.id && <div className="rowMenu"><button type="button" onClick={() => { removeStudent(student.id); setMenuStudent(""); }}>删除学生</button></div>}</div></div>
             <div className="studentCardBottom"><input className="quickInput" value={student.quickNote} onFocus={() => setEditingStudent(student.id)} onBlur={() => setEditingStudent("")} onChange={(event) => updateStudent(student.id, { quickNote: event.target.value })} placeholder="课堂表现（可自由修改，也可留空）" /><button className={`scoreCell ${student.score !== "" ? "filled" : ""}`} type="button" onClick={() => openRecorder(index)}>{student.score === "" ? "+ 录分" : student.score === "缺考" ? "缺考" : `${student.score} / 30`}</button></div>
@@ -424,6 +426,7 @@ const groupCss = `
   .groupApiError{margin-top:8px;border-radius:7px;background:#F8EBED;color:#A85861;padding:8px 10px;font-size:12px}
   .generateGroup:disabled{opacity:.55;cursor:wait}
   .classDelete:disabled,.excelDownload:disabled,.addStudentRow button:disabled,.addStudentRow input:disabled{opacity:.45;cursor:not-allowed}
+  .teacherPicker{position:relative;justify-self:end}.teacherPicker .teacherSwitch{min-width:132px;justify-content:flex-start}.teacherSwitch b{font-size:12px}.teacherSwitch svg{margin-left:auto;transition:transform 160ms}.teacherSwitch svg.open{transform:rotate(180deg)}.teacherMenu{position:absolute;right:0;top:calc(100% + 8px);z-index:80;width:190px;padding:6px;border:1px solid #DCE7E8;border-radius:12px;background:#fff;box-shadow:0 14px 36px rgba(24,52,62,.16)}.teacherMenu>button{width:100%;display:grid;grid-template-columns:32px 1fr 18px;align-items:center;gap:9px;border:0;border-radius:8px;background:transparent;color:#18343E;padding:8px;text-align:left;cursor:pointer}.teacherMenu>button:hover{background:#F3F8F8}.teacherMenu>button.active{background:#EAF5F3}.teacherMenu>button>span{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:#E7F3F1;color:#2E766F;font-size:12px;font-weight:800}.teacherMenu>button div{display:grid;gap:2px}.teacherMenu>button b{font-size:13px}.teacherMenu>button small{color:#8799A0;font-size:10px}.teacherMenu>button>svg{color:#3A9189}.emptyTeacherState{min-height:320px;display:grid;place-content:center;justify-items:center;padding:34px;text-align:center}.emptyTeacherState>span{width:52px;height:52px;display:grid;place-items:center;border-radius:14px;background:#E7F3F1;color:#3A9189}.emptyTeacherState h3{margin:15px 0 6px;color:#18343E;font-size:17px}.emptyTeacherState p{max-width:330px;margin:0;color:#7A9098;font-size:12px;line-height:1.7}.emptyTeacherState button{display:flex;align-items:center;gap:6px;margin-top:18px;border:0;border-radius:8px;background:#3A9189;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer}
   @media(max-width:1100px){.groupMain{height:auto;grid-template-columns:1fr;overflow:visible}.courseWorkspace{max-height:none}.studentWorkspace{height:720px}.studentCardTop{flex-wrap:wrap}}
   @media(max-width:900px){.studentActions{width:100%;flex-wrap:wrap}.groupMain{width:min(100% - 20px,1200px)}.overviewStats{display:none}}
 `;
