@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, Copy, Download, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Copy, Download, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { createTemplateExcelBlob } from "./excel-template";
 import GroupClassWorkspace from "./GroupClassWorkspace";
 
@@ -658,7 +658,7 @@ export default function App() {
     return (
       <>
         <button className="workspaceBack" type="button" onClick={() => setWorkspace("home")}>
-          ← 返回课程类型
+          <ArrowLeft size={18} strokeWidth={1.75} aria-hidden="true" />返回课程类型
         </button>
         <OneToOneWorkspace />
       </>
@@ -1726,6 +1726,45 @@ textarea:focus,
 
 .rating button.active {
   color: #b99562;
+}
+
+.workspaceBack {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  z-index: 60;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #ffc0cb;
+  border-radius: 12px;
+  background: rgba(255, 254, 242, 0.96);
+  color: #74545b;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 7px 20px rgba(116, 84, 91, 0.13);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 170ms ease, background 170ms ease, color 170ms ease, transform 170ms ease, box-shadow 170ms ease;
+}
+
+.workspaceBack:hover {
+  border-color: #efa5b2;
+  background: #fff0f3;
+  color: #68464d;
+  transform: translateY(-1px);
+  box-shadow: 0 9px 24px rgba(116, 84, 91, 0.17);
+}
+
+.workspaceBack:active {
+  transform: translateY(0);
+}
+
+.workspaceBack svg {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 900px) {
