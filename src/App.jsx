@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Download, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AlertCircle, Check, Copy, Download, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { createTemplateExcelBlob } from "./excel-template";
 import GroupClassWorkspace from "./GroupClassWorkspace";
 
@@ -499,7 +499,7 @@ function OneToOneWorkspace() {
             placeholder="例如：小明今天上初二数学，讲了一次函数图像和性质。重点是理解 k 和 b 对图像的影响，还练了根据图像判断函数表达式。基础题能做出来，但遇到图像和实际问题结合时反应比较慢，容易看错坐标。课堂上能跟着老师思路走，但主动表达少了一点。作业是完成讲义第 3 到 8 题，把错题订正一遍。"
           />
 
-          {error && <div className="errorBox">{error}</div>}
+          {error && <div className="errorBox"><AlertCircle size={16} aria-hidden="true" /><span>{error}</span></div>}
 
           <button className="primaryBtn" onClick={generateFeedback} disabled={loading}>
             <Sparkles size={18} aria-hidden="true" />
@@ -560,7 +560,7 @@ function OneToOneWorkspace() {
                   : `${meta.teacherName} 的 ${result.studentName} 还没有课次记录；当前将下载第 ${currentLessonNumber} 次课。下载 Excel 后会自动记住。`}
               </div>
             )}
-            {studentError && <div className="miniError">{studentError}</div>}
+            {studentError && <div className="miniError"><AlertCircle size={15} aria-hidden="true" /><span>{studentError}</span></div>}
           </div>
 
           <div className="metaGrid">
@@ -782,10 +782,11 @@ function SegmentedInput({ label, value, options, onChange }) {
           <button
             key={optionValue}
             type="button"
+            data-value={optionValue}
             className={value === optionValue ? "selected" : ""}
             onClick={() => onChange(optionValue)}
           >
-            {labelText}
+            {labelText === "√" ? <Check size={17} strokeWidth={1.75} aria-hidden="true" /> : labelText === "×" ? <X size={17} strokeWidth={1.75} aria-hidden="true" /> : labelText}
           </button>
         ))}
       </div>
@@ -1278,6 +1279,305 @@ textarea:focus {
 
 .fullCard .grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* One-to-one visual refinement: layout and business behavior intentionally unchanged. */
+:root {
+  --ink: #172b35;
+  --muted: #667985;
+  --line: #dce5e8;
+  --line-strong: #a9ceca;
+  --surface: #ffffff;
+  --surface-soft: #fafcfc;
+  --page: #f4f7f8;
+  --brand: #287f78;
+  --brand-strong: #216d67;
+  --brand-soft: #e8f3f1;
+  --danger: #b4585d;
+  --danger-soft: #fbeff0;
+  --shadow: 0 6px 20px rgba(31, 55, 65, 0.06);
+}
+
+body {
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f4f7f8;
+  color: #172b35;
+}
+
+.page {
+  background: #f4f7f8;
+  box-shadow: inset 0 2px 0 #287f78;
+}
+
+.hero,
+.card {
+  border-color: #dce5e8;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(31, 55, 65, 0.06);
+}
+
+.tag {
+  border-radius: 6px;
+  background: #e8f3f1;
+  color: #287f78;
+  font-weight: 700;
+}
+
+.hero h1 {
+  color: #172b35;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.hero p {
+  color: #667985;
+}
+
+.heroMeta span {
+  min-height: 34px;
+  border-color: #d6e2e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #3c555f;
+  font-weight: 600;
+}
+
+.heroMeta span:first-child {
+  border-color: #a9ceca;
+  background: #e8f3f1;
+  color: #287f78;
+}
+
+h2 {
+  color: #203a44;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+h3 {
+  color: #203a44;
+  font-weight: 650;
+}
+
+.textInput span,
+.item label {
+  color: #344e58;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.textInput em,
+.hint {
+  color: #80919a;
+}
+
+input,
+select,
+textarea,
+.affixInput,
+.rating {
+  border-color: #d8e3e6;
+  border-radius: 8px;
+  background: #fafcfc;
+  color: #425b65;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+select {
+  background-color: #ffffff;
+  color: #344e58;
+}
+
+textarea {
+  padding: 15px;
+  line-height: 1.65;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #7c8e97;
+  opacity: 1;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.affixInput:focus-within {
+  border-color: #287f78;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(40, 127, 120, 0.1);
+}
+
+.primaryBtn {
+  border-radius: 8px;
+  background: #287f78;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 5px 14px rgba(40, 127, 120, 0.18);
+  transition: background 170ms ease, box-shadow 170ms ease, color 170ms ease;
+}
+
+.primaryBtn:hover {
+  background: #216d67;
+  transform: none;
+  box-shadow: 0 6px 16px rgba(40, 127, 120, 0.22);
+}
+
+.primaryBtn:active {
+  background: #1b5d58;
+}
+
+.smallBtn {
+  border-color: #d6e2e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #3c555f;
+  font-weight: 600;
+  transition: border-color 170ms ease, background 170ms ease, color 170ms ease;
+}
+
+.smallBtn:hover {
+  border-color: #a9ceca;
+  background: #e8f3f1;
+  color: #287f78;
+}
+
+.inlineActions .smallBtn:not(.danger) {
+  border-color: #a9ceca;
+  color: #287f78;
+}
+
+.smallBtn.dark {
+  border-color: #d6e2e5;
+  background: #ffffff;
+  color: #607680;
+}
+
+.smallBtn.dark svg,
+.inlineActions .smallBtn:not(.danger) svg {
+  color: #287f78;
+}
+
+.smallBtn.dark:hover {
+  border-color: #a9ceca;
+  background: #f2f7f7;
+  color: #287f78;
+}
+
+.smallBtn.danger {
+  border-color: #edc9cc;
+  background: #ffffff;
+  color: #b4585d;
+}
+
+.smallBtn.danger:hover:not(:disabled) {
+  background: #fbeff0;
+}
+
+.smallBtn:disabled {
+  border-color: #dce5e8;
+  background: #fafcfc;
+  color: #9aa8ae;
+  opacity: 1;
+}
+
+.errorBox,
+.miniError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-color: #edc9cc;
+  border-radius: 8px;
+  background: #fbeff0;
+  color: #b4585d;
+}
+
+.errorBox svg,
+.miniError svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  stroke-width: 1.75;
+}
+
+.lessonMemoryNote {
+  border-color: #cfe2df;
+  border-radius: 8px;
+  background: #f2f7f6;
+  color: #496b6a;
+}
+
+.segmented {
+  gap: 8px;
+}
+
+.segmented button {
+  border-color: #d8e3e6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #526a74;
+  transition: border-color 170ms ease, background 170ms ease, color 170ms ease;
+}
+
+.segmented button.selected {
+  border-color: #287f78;
+  background: #287f78;
+  color: #ffffff;
+}
+
+.segmented button[data-value="未完成"].selected {
+  border-color: #b8666d;
+  background: #b8666d;
+}
+
+.segmented button svg {
+  stroke-width: 1.75;
+}
+
+.rating {
+  background: #ffffff;
+}
+
+.rating button {
+  color: #cbd5d9;
+  font-size: 19px;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.rating button.active {
+  color: #c79b55;
+}
+
+.rating button:hover {
+  background: #faf6ee;
+  color: #d0ae72;
+}
+
+.item textarea,
+.feedbackBox {
+  border-color: #dce5e8;
+  border-radius: 8px;
+  background: #fafcfc;
+  color: #455d66;
+  line-height: 1.65;
+}
+
+.item label {
+  margin-bottom: 7px;
+}
+
+.item textarea::placeholder,
+.feedbackBox[readonly] {
+  color: #87989f;
+}
+
+button,
+input,
+textarea,
+select {
+  transition-duration: 170ms;
 }
 
 @media (max-width: 900px) {
