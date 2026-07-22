@@ -711,9 +711,10 @@ const gatewayCss = `
   .courseChoices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
   .courseChoice { min-height:190px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; border:1px solid rgba(80,130,150,.18); border-radius:28px; padding:28px; text-align:left; color:#284757; cursor:pointer; box-shadow:0 18px 50px rgba(65,108,127,.12); transition:transform .2s,box-shadow .2s; }
   .courseChoice:hover { transform:translateY(-5px); box-shadow:0 24px 60px rgba(65,108,127,.19); }
-  .privateChoice { background:rgba(255,255,255,.86); }
+  .privateChoice { background:rgba(246,232,236,.92); border-color:rgba(169,121,134,.22); }
   .groupChoice { background:linear-gradient(145deg,#dff3ff,#bfeaf1); }
   .choiceIcon { width:64px; height:64px; display:grid; place-items:center; border-radius:20px; background:#fff; color:#3aaabb; font-size:22px; font-weight:900; box-shadow:0 8px 24px rgba(70,150,170,.12); }
+  .privateChoice .choiceIcon,.privateChoice .choiceArrow { color:#a97986; }
   .choiceCopy { display:grid; gap:8px; }
   .choiceCopy b { font-size:22px; }
   .choiceCopy small { color:#688493; font-size:14px; line-height:1.6; }
@@ -1578,6 +1579,151 @@ input,
 textarea,
 select {
   transition-duration: 170ms;
+}
+
+/* Morandi blush theme for the one-to-one workspace. */
+:root {
+  --ink: #3b3237;
+  --muted: #7e7078;
+  --line: #e6dadd;
+  --line-strong: #cfaeb7;
+  --surface-soft: #fcfafb;
+  --page: #f8f3f5;
+  --brand: #a97986;
+  --brand-strong: #916875;
+  --brand-soft: #f3e7eb;
+  --shadow: 0 6px 20px rgba(83, 61, 69, 0.06);
+}
+
+body,
+.page {
+  background: #f8f3f5;
+  color: #3b3237;
+}
+
+.page {
+  box-shadow: inset 0 2px 0 #a97986;
+}
+
+.hero,
+.card {
+  border-color: #e6dadd;
+  box-shadow: 0 6px 20px rgba(83, 61, 69, 0.06);
+}
+
+.tag,
+.heroMeta span:first-child {
+  border-color: #d8bec5;
+  background: #f3e7eb;
+  color: #966d79;
+}
+
+.hero h1 {
+  color: #3b3237;
+}
+
+.hero p,
+.hint,
+.textInput em {
+  color: #7e7078;
+}
+
+.heroMeta span {
+  border-color: #e3d7da;
+  color: #675960;
+}
+
+h2,
+h3 {
+  color: #4b3d43;
+}
+
+.textInput span,
+.item label {
+  color: #5b4a51;
+}
+
+input,
+textarea,
+.affixInput,
+.rating,
+.item textarea,
+.feedbackBox {
+  border-color: #e5d9dc;
+  background: #fcfafb;
+  color: #5d5056;
+}
+
+select {
+  border-color: #e5d9dc;
+  color: #5d5056;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.affixInput:focus-within {
+  border-color: #a97986;
+  box-shadow: 0 0 0 3px rgba(169, 121, 134, 0.11);
+}
+
+.primaryBtn {
+  background: #a97986;
+  box-shadow: 0 5px 14px rgba(169, 121, 134, 0.2);
+}
+
+.primaryBtn:hover {
+  background: #916875;
+  box-shadow: 0 6px 16px rgba(145, 104, 117, 0.22);
+}
+
+.primaryBtn:active {
+  background: #7e5864;
+}
+
+.smallBtn {
+  border-color: #e3d7da;
+  color: #675960;
+}
+
+.smallBtn:hover,
+.inlineActions .smallBtn:not(.danger):hover {
+  border-color: #cfaeb7;
+  background: #f3e7eb;
+  color: #966d79;
+}
+
+.inlineActions .smallBtn:not(.danger),
+.smallBtn.dark svg,
+.inlineActions .smallBtn:not(.danger) svg {
+  border-color: #d8bec5;
+  color: #a06f7d;
+}
+
+.smallBtn.dark:hover {
+  border-color: #cfaeb7;
+  background: #f8f1f3;
+  color: #966d79;
+}
+
+.lessonMemoryNote {
+  border-color: #e2cfd4;
+  background: #f8f1f3;
+  color: #765e67;
+}
+
+.segmented button {
+  border-color: #e5d9dc;
+  color: #716168;
+}
+
+.segmented button.selected {
+  border-color: #a97986;
+  background: #a97986;
+}
+
+.rating button.active {
+  color: #b99562;
 }
 
 @media (max-width: 900px) {
