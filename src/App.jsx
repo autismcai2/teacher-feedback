@@ -711,7 +711,7 @@ const gatewayCss = `
   .courseChoices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
   .courseChoice { min-height:190px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; border:1px solid rgba(80,130,150,.18); border-radius:28px; padding:28px; text-align:left; color:#284757; cursor:pointer; box-shadow:0 18px 50px rgba(65,108,127,.12); transition:transform .2s,box-shadow .2s; }
   .courseChoice:hover { transform:translateY(-5px); box-shadow:0 24px 60px rgba(65,108,127,.19); }
-  .privateChoice { background:#ffffe0; border-color:#ffc0cb; }
+  .privateChoice { background:#fffdf0; border-color:#ffc0cb; }
   .groupChoice { background:linear-gradient(145deg,#dff3ff,#bfeaf1); }
   .choiceIcon { width:64px; height:64px; display:grid; place-items:center; border-radius:20px; background:#fff; color:#3aaabb; font-size:22px; font-weight:900; box-shadow:0 8px 24px rgba(70,150,170,.12); }
   .privateChoice .choiceIcon,.privateChoice .choiceArrow { color:#a97986; }
@@ -1588,7 +1588,7 @@ select {
   --line: #eadfc7;
   --line-strong: #ffc0cb;
   --surface-soft: #fffef2;
-  --page: #ffffe0;
+  --page: #fffdf0;
   --brand: #ffc0cb;
   --brand-strong: #f2aeba;
   --brand-soft: #fff0f3;
@@ -1597,7 +1597,7 @@ select {
 
 body,
 .page {
-  background: #ffffe0;
+  background: #fffdf0;
   color: #453a3d;
 }
 
