@@ -711,7 +711,7 @@ const gatewayCss = `
   .courseChoices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
   .courseChoice { min-height:190px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; border:1px solid rgba(80,130,150,.18); border-radius:28px; padding:28px; text-align:left; color:#284757; cursor:pointer; box-shadow:0 18px 50px rgba(65,108,127,.12); transition:transform .2s,box-shadow .2s; }
   .courseChoice:hover { transform:translateY(-5px); box-shadow:0 24px 60px rgba(65,108,127,.19); }
-  .privateChoice { background:rgba(246,232,236,.92); border-color:rgba(169,121,134,.22); }
+  .privateChoice { background:#ffffe0; border-color:#ffc0cb; }
   .groupChoice { background:linear-gradient(145deg,#dff3ff,#bfeaf1); }
   .choiceIcon { width:64px; height:64px; display:grid; place-items:center; border-radius:20px; background:#fff; color:#3aaabb; font-size:22px; font-weight:900; box-shadow:0 8px 24px rgba(70,150,170,.12); }
   .privateChoice .choiceIcon,.privateChoice .choiceArrow { color:#a97986; }
@@ -1581,66 +1581,66 @@ select {
   transition-duration: 170ms;
 }
 
-/* Morandi blush theme for the one-to-one workspace. */
+/* Soft yellow and pink theme for the one-to-one workspace. */
 :root {
-  --ink: #3b3237;
-  --muted: #7e7078;
-  --line: #e6dadd;
-  --line-strong: #cfaeb7;
-  --surface-soft: #fcfafb;
-  --page: #f8f3f5;
-  --brand: #a97986;
-  --brand-strong: #916875;
-  --brand-soft: #f3e7eb;
-  --shadow: 0 6px 20px rgba(83, 61, 69, 0.06);
+  --ink: #453a3d;
+  --muted: #7f7470;
+  --line: #eadfc7;
+  --line-strong: #ffc0cb;
+  --surface-soft: #fffef2;
+  --page: #ffffe0;
+  --brand: #ffc0cb;
+  --brand-strong: #f2aeba;
+  --brand-soft: #fff0f3;
+  --shadow: 0 6px 20px rgba(101, 79, 67, 0.07);
 }
 
 body,
 .page {
-  background: #f8f3f5;
-  color: #3b3237;
+  background: #ffffe0;
+  color: #453a3d;
 }
 
 .page {
-  box-shadow: inset 0 2px 0 #a97986;
+  box-shadow: inset 0 2px 0 #ffc0cb;
 }
 
 .hero,
 .card {
-  border-color: #e6dadd;
-  box-shadow: 0 6px 20px rgba(83, 61, 69, 0.06);
+  border-color: #eadfc7;
+  box-shadow: 0 6px 20px rgba(101, 79, 67, 0.07);
 }
 
 .tag,
 .heroMeta span:first-child {
-  border-color: #d8bec5;
-  background: #f3e7eb;
-  color: #966d79;
+  border-color: #ffc0cb;
+  background: #fff0f3;
+  color: #8d5963;
 }
 
 .hero h1 {
-  color: #3b3237;
+  color: #453a3d;
 }
 
 .hero p,
 .hint,
 .textInput em {
-  color: #7e7078;
+  color: #7f7470;
 }
 
 .heroMeta span {
-  border-color: #e3d7da;
-  color: #675960;
+  border-color: #eadfc7;
+  color: #685b58;
 }
 
 h2,
 h3 {
-  color: #4b3d43;
+  color: #514246;
 }
 
 .textInput span,
 .item label {
-  color: #5b4a51;
+  color: #5f504d;
 }
 
 input,
@@ -1649,77 +1649,79 @@ textarea,
 .rating,
 .item textarea,
 .feedbackBox {
-  border-color: #e5d9dc;
-  background: #fcfafb;
-  color: #5d5056;
+  border-color: #eadfc7;
+  background: #fffef2;
+  color: #5f5350;
 }
 
 select {
-  border-color: #e5d9dc;
-  color: #5d5056;
+  border-color: #eadfc7;
+  color: #5f5350;
 }
 
 input:focus,
 select:focus,
 textarea:focus,
 .affixInput:focus-within {
-  border-color: #a97986;
-  box-shadow: 0 0 0 3px rgba(169, 121, 134, 0.11);
+  border-color: #ffc0cb;
+  box-shadow: 0 0 0 3px rgba(255, 192, 203, 0.22);
 }
 
 .primaryBtn {
-  background: #a97986;
-  box-shadow: 0 5px 14px rgba(169, 121, 134, 0.2);
+  background: #ffc0cb;
+  color: #68464d;
+  box-shadow: 0 5px 14px rgba(218, 143, 156, 0.22);
 }
 
 .primaryBtn:hover {
-  background: #916875;
-  box-shadow: 0 6px 16px rgba(145, 104, 117, 0.22);
+  background: #f2aeba;
+  box-shadow: 0 6px 16px rgba(218, 143, 156, 0.25);
 }
 
 .primaryBtn:active {
-  background: #7e5864;
+  background: #e89aa8;
 }
 
 .smallBtn {
-  border-color: #e3d7da;
-  color: #675960;
+  border-color: #eadfc7;
+  color: #685b58;
 }
 
 .smallBtn:hover,
 .inlineActions .smallBtn:not(.danger):hover {
-  border-color: #cfaeb7;
-  background: #f3e7eb;
-  color: #966d79;
+  border-color: #ffc0cb;
+  background: #fff0f3;
+  color: #8d5963;
 }
 
 .inlineActions .smallBtn:not(.danger),
 .smallBtn.dark svg,
 .inlineActions .smallBtn:not(.danger) svg {
-  border-color: #d8bec5;
-  color: #a06f7d;
+  border-color: #ffc0cb;
+  color: #a36873;
 }
 
 .smallBtn.dark:hover {
-  border-color: #cfaeb7;
-  background: #f8f1f3;
-  color: #966d79;
+  border-color: #ffc0cb;
+  background: #fff0f3;
+  color: #8d5963;
 }
 
 .lessonMemoryNote {
-  border-color: #e2cfd4;
-  background: #f8f1f3;
-  color: #765e67;
+  border-color: #f0d3d8;
+  background: #fff8e8;
+  color: #74615b;
 }
 
 .segmented button {
-  border-color: #e5d9dc;
-  color: #716168;
+  border-color: #eadfc7;
+  color: #71635f;
 }
 
 .segmented button.selected {
-  border-color: #a97986;
-  background: #a97986;
+  border-color: #ffc0cb;
+  background: #ffc0cb;
+  color: #68464d;
 }
 
 .rating button.active {
