@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import { buildFeedbackSupplement } from "./feedback-policy.js";
+import { buildAnalysisPrompt, normalizeAnalysis, generationInfo } from "./feedback-analysis.js";
 import express from "express";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -850,9 +851,24 @@ app.post("/api/lessons", async (req, res) => {
   }
 });
 
+app.post("/api/analyze-feedback", async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!String(body.rawText || "").trim()) return res.status(400).json({ error: "请先输入课堂记录。" });
+    const missingAiConfig = getMissingAiConfig();
+    if (missingAiConfig) return res.status(500).json({ error: missingAiConfig });
+    const mode = body.mode === "group-class" ? "group-class" : "one-to-one";
+    const context = { mode, rawText: body.rawText, meta: body.meta || {}, classInfo: body.classInfo || "", students: Array.isArray(body.students) ? body.students : [], supplementalDetails: body.supplementalDetails || {} };
+    res.json(normalizeAnalysis(extractJson(await generateAiText(buildAnalysisPrompt(context))), mode));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error?.message || "分析课堂缺项失败，请重试。" });
+  }
+});
+
 app.post("/api/generate-group-feedback", async (req, res) => {
   try {
-    const { rawText = "", classInfo = "", students = [], supplementalDetails = {} } = req.body || {};
+    const { rawText = "", classInfo = "", students = [], supplementalDetails = {}, analysis } = req.body || {};
     if (!String(rawText).trim()) return res.status(400).json({ error: "请输入整班课堂记录。" });
     const missingAiConfig = getMissingAiConfig();
     if (missingAiConfig) return res.status(500).json({ error: missingAiConfig });
@@ -860,6 +876,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
     const parsed = extractJson(await generateAiText(`${prompt}\n${buildFeedbackSupplement(supplementalDetails)}`));
     const comments = new Map((Array.isArray(parsed.students) ? parsed.students : []).map((item) => [String(item.name), String(item.performanceComment || "").trim()]));
     res.json({
+      generationInfo: generationInfo(analysis, supplementalDetails, "group-class"),
       teachingContent: String(parsed.teachingContent || "").trim(),
       difficultPoints: String(parsed.difficultPoints || "").trim(),
       absorption: String(parsed.absorption || "").trim(),
@@ -874,7 +891,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
 
 app.post("/api/generate-feedback", async (req, res) => {
   try {
-    const { rawText, style = "温和鼓励", meta = {}, supplementalDetails = {} } = req.body;
+    const { rawText, style = "温和鼓励", meta = {}, supplementalDetails = {}, analysis } = req.body;
 
     if (!rawText || !rawText.trim()) {
       return res.status(400).json({ error: "请输入课堂记录。" });
@@ -931,7 +948,7 @@ ${buildFeedbackSupplement(supplementalDetails)}
 `;
 
     const data = cleanFeedbackData(extractJson(await generateAiText(prompt)));
-    res.json({ ...fallbackResult, ...data });
+    res.json({ ...fallbackResult, ...data, generationInfo: generationInfo(analysis, supplementalDetails, "one-to-one") });
   } catch (error) {
     console.error(error);
 

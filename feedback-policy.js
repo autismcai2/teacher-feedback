@@ -1,10 +1,14 @@
+import { feedbackFields, normalizeDetails } from "./feedback-analysis.js";
+
 export function buildFeedbackSupplement(details = {}) {
-  const fields = [["practice", "课堂练习"], ["mastery", "答题与掌握情况"], ["homework", "课后作业"]];
-  const values = Object.fromEntries(fields.map(([key]) => [key, typeof details?.[key] === "string" ? details[key].trim().slice(0, 4000) : ""]));
+  const fields = Object.entries({ ...feedbackFields, mastery: "答题与掌握情况" });
+  const values = normalizeDetails(details);
   return `
 补充信息（老师主动填写的内容优先于原记录；空白表示跳过，不表示没有练习或没有作业）：
 ${fields.map(([key, label]) => `${label}：${values[key] || "已跳过，优先使用原记录，否则按下述策略补全"}`).join("\n")}
 信息不足时的写作策略：
+- 补充内容按对应分块使用，不能遗漏老师填写的教学内容、重点、难点、姓名或课程。未补充分块优先使用原记录与页面信息，再按本课主题补全完整草稿；姓名不明用“同学”，不虚构身份。
+- 未明确具体教学范围时，基于已给出的主题选择合理的基础教学范围作为草稿，不编造讲义页码或具体课堂事件。
 - 当课堂记录和补充信息没有明确写出作业或做题情况时，根据本节课知识点自动补充合理的课堂练习情境。默认出席学生已经参与相关基础练习，生成符合课程内容的答题表现、掌握情况和课后巩固建议。
 - 可以模拟常见基础题、变式题和易错点，保持适度、具体，不罗列彼此矛盾的可能性；不要编造具体分数、题号、排名或老师没有提供的真实事件（如考试、点名、具体对话、完成数量）。模拟内容是供老师核对的反馈草稿。
 - 不要输出“没有做题情况”“尚无完整记录”“未提及答题情况”“暂无明确作业安排”等推脱性表达，也不要用“缺乏记录、无法判断”等同义句回避写作。

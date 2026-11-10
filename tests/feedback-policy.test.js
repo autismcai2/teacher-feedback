@@ -14,7 +14,8 @@ test("teacher supplements retain explicit negative facts instead of becoming ski
   const prompt = buildFeedbackSupplement({ practice: " 本节没有练习 ", mastery: "基础不牢", homework: "不布置作业" });
   assert.match(prompt, /课堂练习：本节没有练习/);
   assert.match(prompt, /答题与掌握情况：基础不牢/);
-  assert.match(prompt, /课后作业：不布置作业/);
-  assert.doesNotMatch(prompt, /已跳过，优先使用原记录/);
+  assert.match(prompt, /作业布置：不布置作业/);
+  assert.doesNotMatch(prompt, /课堂练习：已跳过/);
+  assert.doesNotMatch(prompt, /作业布置：已跳过/);
   assert.doesNotThrow(() => buildFeedbackSupplement(null));
 });

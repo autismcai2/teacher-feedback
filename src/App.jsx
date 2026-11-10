@@ -3,6 +3,8 @@ import { AlertCircle, ArrowLeft, Check, Copy, Download, Plus, Sparkles, Trash2, 
 import { createTemplateExcelBlob } from "./excel-template";
 import GroupClassWorkspace from "./GroupClassWorkspace";
 import FeedbackDetailsDialog from "./FeedbackDetailsDialog";
+import useFeedbackFlow from "./useFeedbackFlow";
+import { downloadReviewMessage } from "./download-review";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
@@ -174,9 +176,7 @@ async function readJsonResponse(response, fallbackMessage) {
 function OneToOneWorkspace() {
   const [rawText, setRawText] = useState("");
   const [style, setStyle] = useState("温和鼓励");
-  const [loading, setLoading] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [supplementalDetails, setSupplementalDetails] = useState({ practice: "", mastery: "", homework: "" });
+  const [supplementalDetails, setSupplementalDetails] = useState({});
   const [error, setError] = useState("");
   const [studentError, setStudentError] = useState("");
   const [copied, setCopied] = useState("");
@@ -196,6 +196,13 @@ function OneToOneWorkspace() {
     homeworkStatus: "已完成",
   });
 
+  const flow = useFeedbackFlow({
+    context: { mode: "one-to-one", rawText, style, meta: { ...meta, studentName: result.studentName } },
+    generationUrl: FEEDBACK_API_URL,
+    onGenerated: applyGeneratedFeedback,
+    onError: setError,
+  });
+  const loading = flow.busy;
   const hasResult = Boolean(result.parentFeedback);
   const selectedStudentLastLesson = result.studentName ? studentLessons[result.studentName] || 0 : 0;
   const currentLessonNumber = toLessonNumber(meta.lessonNumber);
@@ -252,7 +259,7 @@ function OneToOneWorkspace() {
   }
 
   function selectTeacher(teacherName) {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     updateMeta("teacherName", teacherName);
     updateMeta("lessonNumber", "1");
     updateResult("studentName", "");
@@ -262,7 +269,7 @@ function OneToOneWorkspace() {
   }
 
   function selectStudent(name, lessons = studentLessons) {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     updateResult("studentName", name);
 
     if (name) {
@@ -339,59 +346,21 @@ function OneToOneWorkspace() {
   }
 
   function updateMeta(key, value) {
-    if (["lessonNumber", "classDate"].includes(key)) setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    if (["lessonNumber", "classDate"].includes(key)) setSupplementalDetails({});
     setMeta((prev) => ({ ...prev, [key]: value }));
   }
 
   function requestFeedback() {
     if (!rawText.trim()) { setError("请先输入课堂记录。"); return; }
-    setDetailsOpen(true);
+    setCopied("");
+    void flow.prepare(supplementalDetails);
   }
 
-  async function generateFeedback(supplementalDetails) {
-    setDetailsOpen(false);
-    if (!rawText.trim()) {
-      setError("请先输入一段课堂记录。比如：小明今天上初二数学，讲了一次函数图像...");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setCopied("");
-
-    try {
-      const response = await fetch(FEEDBACK_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawText,
-          supplementalDetails,
-          style,
-          meta: { ...meta, studentName: result.studentName },
-        }),
-      });
-
-      const data = await readJsonResponse(response, "AI 生成失败");
-
-      if (!response.ok) {
-        throw new Error(data.error || "AI 生成失败");
-      }
-
-      const nextStudentName = result.studentName || data.studentName || "";
-
-      setResult((prev) => ({
-        ...emptyResult,
-        ...data,
-        studentName: prev.studentName || data.studentName || "",
-      }));
-
-      if (!result.studentName && students.includes(nextStudentName)) {
-        updateMeta("lessonNumber", nextLessonNumberForStudent(studentLessons, nextStudentName));
-      }
-    } catch (err) {
-      setError(err.message || "请求失败。请确认 server.js 已经运行。");
-    } finally {
-      setLoading(false);
+  function applyGeneratedFeedback(data) {
+    const nextStudentName = result.studentName || data.studentName || "";
+    setResult((previous) => ({ ...emptyResult, ...data, studentName: previous.studentName || data.studentName || "" }));
+    if (!result.studentName && students.includes(nextStudentName)) {
+      updateMeta("lessonNumber", nextLessonNumberForStudent(studentLessons, nextStudentName));
     }
   }
 
@@ -403,7 +372,7 @@ function OneToOneWorkspace() {
 
   async function downloadExcel() {
     if (!hasResult) return;
-    if (!window.confirm("下载前请核对：当练习、答题表现或作业信息未补充且原记录未说明时，反馈会按本课知识点模拟补全。请确认与学生实际情况一致，再下载并发送给家长。\n\n点击“确定”继续下载，点击“取消”返回修改。")) return;
+    if (!window.confirm(downloadReviewMessage(result.generationInfo))) return;
 
     const teacherName = meta.teacherName;
     const lessonNumber = toLessonNumber(meta.lessonNumber);
@@ -480,7 +449,7 @@ function OneToOneWorkspace() {
   return (
     <div className="page">
       <style>{css}</style>
-      {detailsOpen && <FeedbackDetailsDialog initialDetails={supplementalDetails} onDraftChange={setSupplementalDetails} onCancel={() => setDetailsOpen(false)} onComplete={generateFeedback} />}
+      {flow.questions && <FeedbackDetailsDialog questions={flow.questions} initialDetails={supplementalDetails} onDraftChange={setSupplementalDetails} onCancel={flow.cancel} onComplete={flow.complete} />}
 
       <header className="hero">
         <div>
@@ -518,7 +487,7 @@ function OneToOneWorkspace() {
 
           <button className="primaryBtn" onClick={requestFeedback} disabled={loading}>
             <Sparkles size={18} aria-hidden="true" />
-            {loading ? "AI 正在生成中..." : "生成分类结果和反馈话术"}
+            {flow.analyzing ? "AI 正在检查缺少的信息..." : loading ? "AI 正在生成中..." : "生成分类结果和反馈话术"}
           </button>
         </section>
 

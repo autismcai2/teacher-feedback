@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, MoreHorizontal, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { createGroupClassExcelBlob } from "./excel-template";
 import FeedbackDetailsDialog from "./FeedbackDetailsDialog";
+import useFeedbackFlow from "./useFeedbackFlow";
+import { downloadReviewMessage } from "./download-review";
 
 const seedStudents = ["陈志祥", "郑力萌", "蔡致远", "张梦晓", "闫浩宇", "关照"];
 const juniorOneStudents = ["罗然", "高茜媛", "朱可馨", "杨紫依", "谢光曦", "韩永旭", "林浩轩", "李静怡", "胡欣怡", "陈伟铭", "陈一蔓", "陈诚霖", "张锦瑶", "张锦睿", "翁健雄"];
@@ -16,15 +18,6 @@ const INITIAL_CLASS_PROFILES = [
   { id: "2026-summer-junior3-math", title: "2026年夏季班", grade: "初三", subject: "数学", defaultTime: "13:10-15:10", students: seedStudents },
   { id: "2026-summer-junior1-math", title: "2026年暑期班", grade: "初一", subject: "数学", defaultTime: "10:10-12:10", students: juniorOneStudents },
 ];
-const commentSeeds = [
-  "课堂专注，认真听讲",
-  "勤学好问，练习踏实",
-  "积极配合，课堂投入",
-  "思维活跃，反应较快",
-  "听课认真，完成及时",
-  "表现稳定，跟进顺畅",
-];
-
 function makeStudent(name, index) {
   return { id: `${Date.now()}-${index}`, name, attendance: "出席", homeworkStatus: "已完成", quickNote: "", score: "" };
 }
@@ -83,11 +76,16 @@ export default function GroupClassWorkspace({ onBack }) {
   const [classDialog, setClassDialog] = useState("");
   const [classDraft, setClassDraft] = useState({ info: "", defaultTime: "13:10-15:10" });
   const [apiError, setApiError] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [supplementalDetails, setSupplementalDetails] = useState({ practice: "", mastery: "", homework: "" });
+  const [supplementalDetails, setSupplementalDetails] = useState({});
   const [results, setResults] = useState({ teachingContent: "", difficultPoints: "", absorption: "", homework: "" });
 
+  const flow = useFeedbackFlow({
+    context: { mode: "group-class", rawText, classInfo: classLabel(classInfo), meta: { teacherName, classId: classInfo.classId, lessonNumber: classInfo.lesson, classDate: classInfo.date, classTime: classInfo.time }, students: students.map((student) => ({ ...student, quickNote: student.quickNoteSource === "ai" ? "" : student.quickNote })) },
+    generationUrl: GROUP_FEEDBACK_API,
+    onGenerated: applyGeneratedDraft,
+    onError: setApiError,
+  });
+  const generating = flow.busy;
   const scoredCount = students.filter((student) => student.score !== "").length;
   const currentStudent = students[scoreIndex];
   const filteredStudents = students.filter((student) => student.name.includes(search.trim()));
@@ -150,7 +148,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }, [showProfiles, teacherName]);
 
   function selectTeacher(nextTeacher) {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     setTeacherMenuOpen(false);
     setTeacherName(nextTeacher);
     showProfiles(readStoredClasses(nextTeacher));
@@ -162,7 +160,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   function updateClassInfo(key, value) {
-    if (["lesson", "date"].includes(key)) setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    if (["lesson", "date"].includes(key)) setSupplementalDetails({});
     setClassInfo((previous) => ({ ...previous, [key]: value }));
   }
 
@@ -175,7 +173,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   function selectClass(classId) {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     const profile = classProfiles.find((item) => item.id === classId);
     if (!profile) return;
     setClassInfo((previous) => ({ ...previous, classId, title: profile.title, grade: profile.grade, subject: profile.subject, time: profile.defaultTime, timeMode: profile.defaultTime }));
@@ -183,7 +181,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   async function createClass() {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     const info = classDraft.info.trim();
     if (!info) return;
     let profile = { id: `class-${Date.now()}`, title: info, grade: "", subject: "", defaultTime: classDraft.defaultTime, students: [] };
@@ -204,7 +202,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   async function deleteCurrentClass() {
-    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
+    setSupplementalDetails({});
     if (classProfiles.length <= 1) return;
     try {
       const response = await fetch(`${GROUP_CLASSES_API}/${encodeURIComponent(classInfo.classId)}`, { method: "DELETE" });
@@ -237,7 +235,7 @@ export default function GroupClassWorkspace({ onBack }) {
 
   async function downloadGroupExcel() {
     if (!classInfo.classId) { setApiError(`请先为${teacherName}新增班级。`); return; }
-    if (!window.confirm("下载前请核对：未补充且原记录未说明的练习、答题表现和作业内容，会按本课知识点模拟补全。请逐一核对学生实际表现、出勤及作业状态。\n\n点击“确定”保存并下载，点击“取消”返回修改。")) return;
+    if (!window.confirm(downloadReviewMessage(results.generationInfo))) return;
     try {
       const response = await fetch(GROUP_LESSONS_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: classInfo.classId, teacherName, lessonNumber: classInfo.lesson, classDate: classInfo.date, classTime: classInfo.time, rawText, teachingContent: results.teachingContent, difficultPoints: results.difficultPoints, absorption: results.absorption, homework: results.homework, students }) });
       const data = await response.json();
@@ -264,6 +262,7 @@ export default function GroupClassWorkspace({ onBack }) {
   }
 
   function updateStudent(id, patch) {
+    if (patch.quickNote !== undefined) patch = { ...patch, quickNoteSource: "teacher" };
     const studentIndex = students.findIndex((student) => student.id === id);
     setStudents((previous) => previous.map((student) => (student.id === id ? { ...student, ...patch } : student)));
     if (patch.name !== undefined && studentIndex >= 0) {
@@ -340,26 +339,13 @@ export default function GroupClassWorkspace({ onBack }) {
 
   function requestDraft() {
     if (!rawText.trim()) { setApiError("请先填写整班课堂记录。"); return; }
-    setDetailsOpen(true);
+    void flow.prepare(supplementalDetails);
   }
 
-  async function generateDraft(supplementalDetails) {
-    setDetailsOpen(false);
-    if (!rawText.trim()) { setApiError("请先填写整班课堂记录。"); return; }
-    setGenerating(true);
-    setApiError("");
-    try {
-      const response = await fetch(GROUP_FEEDBACK_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classInfo: classLabel(classInfo), rawText, students, supplementalDetails }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "生成班课反馈失败");
-      const comments = new Map((data.students || []).map((item) => [item.name, item.performanceComment]));
-      setStudents((previous) => previous.map((student, index) => ({ ...student, quickNote: comments.get(student.name) || student.quickNote || commentSeeds[index % commentSeeds.length] })));
-      setResults({ teachingContent: data.teachingContent || "", difficultPoints: data.difficultPoints || "", absorption: data.absorption || "", homework: data.homework || "" });
-    } catch (error) {
-      setApiError(error.message);
-    } finally {
-      setGenerating(false);
-    }
+  function applyGeneratedDraft(data) {
+    const comments = new Map((data.students || []).map((item) => [item.name, item.performanceComment]));
+    setStudents((previous) => previous.map((student) => ({ ...student, quickNote: comments.get(student.name) || student.quickNote || (student.attendance === "出席" ? "课堂表现待核对" : student.attendance), quickNoteSource: student.quickNote && student.quickNoteSource !== "ai" ? "teacher" : "ai" })));
+    setResults({ teachingContent: data.teachingContent || "", difficultPoints: data.difficultPoints || "", absorption: data.absorption || "", homework: data.homework || "", generationInfo: data.generationInfo });
   }
 
   const rangeScores = scoreRange === 20
@@ -368,7 +354,7 @@ export default function GroupClassWorkspace({ onBack }) {
 
   return (
     <div className="groupShell">
-      {detailsOpen && <FeedbackDetailsDialog initialDetails={supplementalDetails} onDraftChange={setSupplementalDetails} onCancel={() => setDetailsOpen(false)} onComplete={generateDraft} />}
+      {flow.questions && <FeedbackDetailsDialog questions={flow.questions} initialDetails={supplementalDetails} onDraftChange={setSupplementalDetails} onCancel={flow.cancel} onComplete={flow.complete} />}
       <header className="groupTopbar">
         <button className="backButton" type="button" onClick={onBack}><ArrowLeft size={18} />课程类型</button>
         <div className="groupBrand"><span>班</span><div><b>班级反馈工作台</b><small>CLASS FEEDBACK</small></div></div>
@@ -379,7 +365,7 @@ export default function GroupClassWorkspace({ onBack }) {
         <section className="courseWorkspace">
           <header className="courseOverview"><div><span>当前班级 · {teacherName}</span><h1>{classInfo.classId ? classLabel(classInfo) : "请先新增班级"}</h1><p>{classInfo.date} <span>{classInfo.time}</span></p></div><div className="overviewStats"><b>{students.length}<small>学员</small></b><b>{scoredCount}<small>已完成</small></b><b>第{classInfo.lesson}次<small>当前课次</small></b></div></header>
           <div className="workspaceSection"><div className="workspaceTitle"><div><h2>本节课信息</h2><p>班级档案绑定学生名单和默认上课时段</p></div></div><div className="leftInfoGrid"><div className="classPicker classManager"><label className="groupField"><span>班级信息</span><select value={classInfo.classId} onChange={(event) => selectClass(event.target.value)}><option value="">{classProfiles.length ? "选择班级" : `${teacherName}暂无班级`}</option>{classProfiles.map((profile) => <option key={profile.id} value={profile.id}>{classLabel(profile)}</option>)}</select></label><div><button type="button" onClick={() => setClassDialog("create")}><Plus size={15} />新增</button><button className="classDelete" disabled={classProfiles.length <= 1} type="button" onClick={() => setClassDialog("delete")}><Trash2 size={15} />删除</button></div></div><Field label="上课日期" type="date" value={classInfo.date} onChange={(value) => updateClassInfo("date", value)} /><ClassTimeField value={classInfo.time} mode={classInfo.timeMode} onChange={(time, timeMode) => setClassInfo((previous) => ({ ...previous, time, timeMode }))} /><Field label="课次" type="number" value={classInfo.lesson} onChange={updateLessonNumber} /></div></div>
-          <div className="workspaceSection aiSection"><div className="workspaceTitle"><div><h2>课堂记录与反馈生成</h2><p>记录本节内容、重点和整体课堂情况</p></div><div className="saveState"><Check size={15} />自动保存</div></div><textarea className="classNotes" disabled={!classInfo.classId} value={rawText} onChange={(event) => setRawText(event.target.value)} placeholder="例如：本节课学习一元二次方程的概念、开平方法和配方法；重点练习二次三项式最值问题……" />{apiError && <div className="groupApiError">{apiError}</div>}<div className="generateRow"><button className="generateGroup" disabled={generating || !classInfo.classId} type="button" onClick={requestDraft}><Sparkles size={18} />{generating ? "AI生成中..." : "生成班级反馈"}</button><button className="excelDownload" disabled={!classInfo.classId} type="button" onClick={downloadGroupExcel}><Download size={17} />保存并下载Excel</button></div><div className="resultTabs">{resultTabs.map(([key, label]) => <button className={activeResult === key ? "active" : ""} type="button" key={key} onClick={() => setActiveResult(key)}>{label}</button>)}</div><textarea className="tabResultEditor" value={results[activeResult]} onChange={(event) => setResults((previous) => ({ ...previous, [activeResult]: event.target.value }))} placeholder="生成后可在这里继续编辑" /></div>
+          <div className="workspaceSection aiSection"><div className="workspaceTitle"><div><h2>课堂记录与反馈生成</h2><p>记录本节内容、重点和整体课堂情况</p></div><div className="saveState"><Check size={15} />自动保存</div></div><textarea className="classNotes" disabled={!classInfo.classId} value={rawText} onChange={(event) => setRawText(event.target.value)} placeholder="例如：本节课学习一元二次方程的概念、开平方法和配方法；重点练习二次三项式最值问题……" />{apiError && <div className="groupApiError">{apiError}</div>}<div className="generateRow"><button className="generateGroup" disabled={generating || !classInfo.classId} type="button" onClick={requestDraft}><Sparkles size={18} />{flow.analyzing ? "AI正在检查缺项..." : generating ? "AI生成中..." : "生成班级反馈"}</button><button className="excelDownload" disabled={!classInfo.classId} type="button" onClick={downloadGroupExcel}><Download size={17} />保存并下载Excel</button></div><div className="resultTabs">{resultTabs.map(([key, label]) => <button className={activeResult === key ? "active" : ""} type="button" key={key} onClick={() => setActiveResult(key)}>{label}</button>)}</div><textarea className="tabResultEditor" value={results[activeResult]} onChange={(event) => setResults((previous) => ({ ...previous, [activeResult]: event.target.value }))} placeholder="生成后可在这里继续编辑" /></div>
         </section>
 
         <section className="studentWorkspace">
