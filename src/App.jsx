@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Check, Copy, Download, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { createTemplateExcelBlob } from "./excel-template";
 import GroupClassWorkspace from "./GroupClassWorkspace";
+import FeedbackDetailsDialog from "./FeedbackDetailsDialog";
 
 const FEEDBACK_API_URL = import.meta.env.VITE_API_URL || "/api/generate-feedback";
 const STUDENTS_API_URL = "/api/students";
@@ -174,6 +175,8 @@ function OneToOneWorkspace() {
   const [rawText, setRawText] = useState("");
   const [style, setStyle] = useState("温和鼓励");
   const [loading, setLoading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [supplementalDetails, setSupplementalDetails] = useState({ practice: "", mastery: "", homework: "" });
   const [error, setError] = useState("");
   const [studentError, setStudentError] = useState("");
   const [copied, setCopied] = useState("");
@@ -249,6 +252,7 @@ function OneToOneWorkspace() {
   }
 
   function selectTeacher(teacherName) {
+    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
     updateMeta("teacherName", teacherName);
     updateMeta("lessonNumber", "1");
     updateResult("studentName", "");
@@ -258,6 +262,7 @@ function OneToOneWorkspace() {
   }
 
   function selectStudent(name, lessons = studentLessons) {
+    setSupplementalDetails({ practice: "", mastery: "", homework: "" });
     updateResult("studentName", name);
 
     if (name) {
@@ -334,10 +339,17 @@ function OneToOneWorkspace() {
   }
 
   function updateMeta(key, value) {
+    if (["lessonNumber", "classDate"].includes(key)) setSupplementalDetails({ practice: "", mastery: "", homework: "" });
     setMeta((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function generateFeedback() {
+  function requestFeedback() {
+    if (!rawText.trim()) { setError("请先输入课堂记录。"); return; }
+    setDetailsOpen(true);
+  }
+
+  async function generateFeedback(supplementalDetails) {
+    setDetailsOpen(false);
     if (!rawText.trim()) {
       setError("请先输入一段课堂记录。比如：小明今天上初二数学，讲了一次函数图像...");
       return;
@@ -353,6 +365,7 @@ function OneToOneWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rawText,
+          supplementalDetails,
           style,
           meta: { ...meta, studentName: result.studentName },
         }),
@@ -390,6 +403,7 @@ function OneToOneWorkspace() {
 
   async function downloadExcel() {
     if (!hasResult) return;
+    if (!window.confirm("下载前请核对：当练习、答题表现或作业信息未补充且原记录未说明时，反馈会按本课知识点模拟补全。请确认与学生实际情况一致，再下载并发送给家长。\n\n点击“确定”继续下载，点击“取消”返回修改。")) return;
 
     const teacherName = meta.teacherName;
     const lessonNumber = toLessonNumber(meta.lessonNumber);
@@ -466,6 +480,7 @@ function OneToOneWorkspace() {
   return (
     <div className="page">
       <style>{css}</style>
+      {detailsOpen && <FeedbackDetailsDialog initialDetails={supplementalDetails} onDraftChange={setSupplementalDetails} onCancel={() => setDetailsOpen(false)} onComplete={generateFeedback} />}
 
       <header className="hero">
         <div>
@@ -501,7 +516,7 @@ function OneToOneWorkspace() {
 
           {error && <div className="errorBox"><AlertCircle size={16} aria-hidden="true" /><span>{error}</span></div>}
 
-          <button className="primaryBtn" onClick={generateFeedback} disabled={loading}>
+          <button className="primaryBtn" onClick={requestFeedback} disabled={loading}>
             <Sparkles size={18} aria-hidden="true" />
             {loading ? "AI 正在生成中..." : "生成分类结果和反馈话术"}
           </button>

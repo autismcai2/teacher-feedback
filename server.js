@@ -1,5 +1,6 @@
 import cors from "cors";
 import dotenv from "dotenv";
+import { buildFeedbackSupplement } from "./feedback-policy.js";
 import express from "express";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -851,12 +852,12 @@ app.post("/api/lessons", async (req, res) => {
 
 app.post("/api/generate-group-feedback", async (req, res) => {
   try {
-    const { rawText = "", classInfo = "", students = [] } = req.body || {};
+    const { rawText = "", classInfo = "", students = [], supplementalDetails = {} } = req.body || {};
     if (!String(rawText).trim()) return res.status(400).json({ error: "请输入整班课堂记录。" });
     const missingAiConfig = getMissingAiConfig();
     if (missingAiConfig) return res.status(500).json({ error: missingAiConfig });
-    const prompt = `你是教培机构班课老师。请根据整班课堂记录生成严格JSON，不要Markdown。\n班级：${classInfo}\n课堂记录：${rawText}\n学生数据：${JSON.stringify(students)}\n输出格式：{"teachingContent":"","difficultPoints":"","absorption":"","homework":"","students":[{"name":"","performanceComment":""}]}。要求：公共内容具体；absorption必须包含4个编号段落，兼顾整体和个人；每名学生的performanceComment控制在8—12个汉字，保持单行、表达互不重复；已有quickNote必须忠实精简，空白时可生成一般性、非虚构的多样化描述；不得修改姓名、出勤、作业和分数。`;
-    const parsed = extractJson(await generateAiText(prompt));
+    const prompt = `你是教培机构班课老师。请根据整班课堂记录生成严格JSON，不要Markdown。\n班级：${classInfo}\n课堂记录：${rawText}\n学生数据：${JSON.stringify(students)}\n输出格式：{"teachingContent":"","difficultPoints":"","absorption":"","homework":"","students":[{"name":"","performanceComment":""}]}。要求：公共内容具体；absorption必须包含4个编号段落，兼顾整体和个人；每名学生的performanceComment控制在8—12个汉字，保持单行、表达互不重复；已有quickNote必须忠实精简，空白时按下方补全策略生成符合本课的多样化草稿，缺席或请假学生只写对应出勤情况；不得修改姓名、出勤、作业和分数。`;
+    const parsed = extractJson(await generateAiText(`${prompt}\n${buildFeedbackSupplement(supplementalDetails)}`));
     const comments = new Map((Array.isArray(parsed.students) ? parsed.students : []).map((item) => [String(item.name), String(item.performanceComment || "").trim()]));
     res.json({
       teachingContent: String(parsed.teachingContent || "").trim(),
@@ -873,7 +874,7 @@ app.post("/api/generate-group-feedback", async (req, res) => {
 
 app.post("/api/generate-feedback", async (req, res) => {
   try {
-    const { rawText, style = "温和鼓励", meta = {} } = req.body;
+    const { rawText, style = "温和鼓励", meta = {}, supplementalDetails = {} } = req.body;
 
     if (!rawText || !rawText.trim()) {
       return res.status(400).json({ error: "请输入课堂记录。" });
@@ -896,8 +897,8 @@ app.post("/api/generate-feedback", async (req, res) => {
 - keyPoints：本节课重点。用“1. ...；2. ...；3. ...”这样的编号格式组织，开头不要加分号或其他标点，120-220 字，要具体到知识点、方法、题型或解题步骤。
 - difficultPoints：本节课难点。120-220 字，要说明学生容易卡在哪里，不能只写“综合运用较难”。
 - absorption：学生吸收情况。180-300 字，必须结合 todayContent/keyPoints/difficultPoints 来写：哪些内容吸收较好，哪些内容还需要练习，原因是什么，后续如何巩固。不要写空泛评价。
-- classroomPerformance：学生课堂表现。只写一句话，约 20-50 字，不要分点，不要展开成长段；只保留专注度、互动、答题或思路跟进中最关键的表现。如果原文没有提到，要基于课堂记录谨慎表达，不要编造。
-- homework：作业布置。原文有作业就按原文整理；没有提到时写“暂无明确作业安排，建议围绕本节重点进行针对性巩固。”
+- classroomPerformance：学生课堂表现。只写一句话，约 20-50 字，不要分点，不要展开成长段；只保留专注度、互动、答题或思路跟进中最关键的表现。如果原文没有提到，按下方补全策略生成与本课内容相关的表现草稿，并尊重出勤及页面评分。
+- homework：作业布置。原文有作业就按原文整理；没有提到时，按下方补全策略给出本课具体巩固任务；明确不布置作业时尊重原意。
 - nextSuggestion：后续学习建议。120-220 字，必须给出和本节课内容对应的具体练习建议。
 - parentFeedback：可直接发给家长的一段话。220-380 字，语气自然，必须包含今天学习的具体内容、孩子掌握情况、当前还需加强的具体点、作业或课后巩固建议。
 
@@ -905,7 +906,7 @@ app.post("/api/generate-feedback", async (req, res) => {
 
 写作要求：
 - 不要机械套模板，不要只写“基础较好、继续努力”这类空话。
-- 如果原始记录信息很少，可以合理补充“建议性表达”，但不要编造具体成绩、排名或不存在的课堂事件。
+- 如果原始记录信息很少，按下方补全策略模拟常见练习与掌握表现，并提供建议性巩固任务；不要编造具体成绩、排名或不存在的课堂事件。
 - 内容要适合老师发给家长，客观、具体、温和。
 - 必须只返回 JSON，不要返回解释、Markdown 或代码块。
 - JSON 的 key 必须严格使用上面列出的英文 key。
@@ -920,7 +921,13 @@ ${JSON.stringify({
   lessonNumber: meta.lessonNumber || "",
   classDate: meta.classDate || "",
   classTime: meta.classTime || "",
+  attendance: meta.attendance || "",
+  homeworkStatus: meta.homeworkStatus || "",
+  seriousness: meta.seriousness ?? "",
+  interaction: meta.interaction ?? "",
 })}
+页面认真程度与互动性采用1—5星评分，不是考试分数。
+${buildFeedbackSupplement(supplementalDetails)}
 `;
 
     const data = cleanFeedbackData(extractJson(await generateAiText(prompt)));
